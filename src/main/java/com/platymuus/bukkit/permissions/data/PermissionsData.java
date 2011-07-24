@@ -4,8 +4,31 @@ import java.util.*;
 import org.bukkit.util.config.Configuration;
 
 public abstract class PermissionsData {
-    public abstract PermissionsData(Configuration config) throws DataAccessException;
+    protected Configuration config;
+
+    public PermissionsData(Configuration config) throws DataAccessException {
+        this.config = config;
+    }
+
+    public abstract HashSet<String> getUsers() throws DataAccessException;
+    public abstract HashSet<String> getGroups() throws DataAccessException;
     public abstract String getDefaultGroup() throws DataAccessException;
+    // Note: For the default group, groupless users need not be included.
+    public abstract HashSet<String> getGroupMembers(String group) throws DataAccessException;
+
+    public HashSet<String> getIndirectGroupMembers(String group) throws DataAccessException {
+        HashSet<String> users = new HashSet<String>();
+        HashSet<String> subgroups = getGroupChildren(group);
+        for (String subgroup : subgroups) {
+            users.addAll(getFullGroupMembers(subgroup));
+        }
+    }
+
+    public HashSet<String> getFullGroupMembers(String group) throws DataAccessException {
+        HashSet<String> users = getGroupMembers(group);
+        users.addAll(getIndirectGroupMembers(group));
+    }
+
     public abstract HashSet<String> getGroupMembership(String user) throws DataAccessException;
 
     public HashSet<String> getEffectiveGroupMembership(String user) throws DataAccessException {

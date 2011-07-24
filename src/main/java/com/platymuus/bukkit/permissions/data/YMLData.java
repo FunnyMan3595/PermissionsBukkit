@@ -5,9 +5,14 @@ import org.bukkit.util.config.Configuration;
 
 public class YMLData {
     public YMLData(Configuration config) throws DataAccessException {
+        super(config);
     }
 
+    public HashSet<String> getUsers() throws DataAccessException;
+    public HashSet<String> getGroups() throws DataAccessException;
     public String getDefaultGroup() throws DataAccessException;
+    // Note: For the default group, groupless users need not be included.
+    public HashSet<String> getGroupMembers(String group) throws DataAccessException;
     public HashSet<String> getGroupMembership(String user) throws DataAccessException;
 
     public HashSet<String> getGroupParents(String group) throws DataAccessException;

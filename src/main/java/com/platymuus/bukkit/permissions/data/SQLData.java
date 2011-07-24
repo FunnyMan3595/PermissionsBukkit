@@ -26,7 +26,10 @@ public class SQLData extends PermissionsData {
     protected PreparedStatement remove_group_membership;
     protected PreparedStatement remove_group_inheritance;
 
+    protected PreparedStatement get_users;
+    protected PreparedStatement get_groups;
     protected PreparedStatement get_default_group;
+    protected PreparedStatement get_group_members;
     protected PreparedStatement get_group_id;
     protected PreparedStatement get_user_id;
     protected PreparedStatement get_group_permission;
@@ -64,7 +67,10 @@ public class SQLData extends PermissionsData {
         remove_group_membership = null;
         remove_group_inheritance = null;
 
+        get_groups = null;
+        get_users = null;
         get_default_group = null;
+        get_group_members = null;
         get_group_id = null;
         get_user_id = null;
         get_group_permission = null;
@@ -77,10 +83,11 @@ public class SQLData extends PermissionsData {
     }
 
     public SQLData(Configuration config) throws DataAccessException {
+        super(config);
         init("a", "b", "c");
     }
 
-    public init(String url, String user, String password) throws SQLException {
+    public void init(String url, String user, String password) throws SQLException {
         MysqlDataSource server = new MysqlDataSource();
         server.setUrl(url);
         server.setUser(user);
@@ -116,9 +123,11 @@ public class SQLData extends PermissionsData {
         remove_group_membership = db.prepareStatement("DELETE FROM GroupMembership USING Groups NATURAL JOIN (GroupMembership NATURAL JOIN Users) WHERE groupname=? AND username=?;");
         remove_group_inheritance = db.prepareStatement("DELETE FROM Rel USING Groups as p INNER JOIN (GroupInheritance as Rel INNER JOIN Groups as c ON Rel.child=c.groupid) ON Rel.parent=p.groupid WHERE p.groupname=? AND c.groupname=?;");
 
-        get_user_id = db.prepareStatement("SELECT userid FROM Users WHERE username=?");
-        get_group_id = db.prepareStatement("SELECT groupid FROM Groups WHERE groupname=?");
+        get_users = db.prepareStatement("SELECT username FROM Users;");
+        get_groups = db.prepareStatement("SELECT groupname FROM Groups;");
         get_default_group = db.prepareStatement("SELECT groupname FROM Groups WHERE is_default=true;");
+        get_user_id = db.prepareStatement("SELECT userid FROM Users WHERE username=?;");
+        get_group_id = db.prepareStatement("SELECT groupid FROM Groups WHERE groupname=?;");
         get_group_permission = db.prepareStatement("SELECT value FROM GroupPermissions NATURAL JOIN Groups WHERE groupname=? AND world=? AND permission=?;");
         get_user_permission = db.prepareStatement("SELECT value FROM UserPermissions NATURAL JOIN Users WHERE username=? AND world=? AND permission=?;");
         get_group_permissions = db.prepareStatement("SELECT permission, value FROM GroupPermissions NATURAL JOIN Groups WHERE groupname=? AND world=?;");
@@ -252,8 +261,21 @@ public class SQLData extends PermissionsData {
      *  Implementations of abstract methods from PermissionsData.
      */
 
+    public HashSet<String> getUsers() throws DataAccessException {
+        return getHashSet(get_users);
+    }
+
+    public HashSet<String> getGroups() throws DataAccessException {
+        return getHashSet(get_groups);
+    }
+
     public String getDefaultGroup() throws DataAccessException {
         return getString(get_default_group);
+    }
+
+    // Note: For the default group, groupless users need not be included.
+    public HashSet<String> getGroupMembers(String group) throws DataAccessException {
+        return getHashSet(get_group_members, group);
     }
 
     public HashSet<String> getGroupMembership(String user) throws DataAccessException {
