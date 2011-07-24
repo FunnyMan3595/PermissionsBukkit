@@ -14,6 +14,10 @@ import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.config.ConfigurationNode;
 
+import com.platymuus.bukkit.permissions.data.PermissionsData;
+import com.platymuus.bukkit.permissions.data.SQLData;
+import com.platymuus.bukkit.permissions.data.YMLData;
+
 /**
  * Main class for PermissionsBukkit.
  */
@@ -249,6 +253,7 @@ public class PermissionsPlugin extends JavaPlugin {
     }
 
     private void writeDefaultConfiguration() {
+        HashMap<String, Object> sql = new HashMap<String, Object>();
         HashMap<String, Object> messages = new HashMap<String, Object>();
         HashMap<String, Object> users = new HashMap<String, Object>();
         HashMap<String, Object> user = new HashMap<String, Object>();
@@ -268,6 +273,12 @@ public class PermissionsPlugin extends JavaPlugin {
         HashMap<String, Object> group_admin = new HashMap<String, Object>();
         ArrayList<String> group_admin_inheritance = new ArrayList<String>();
         HashMap<String, Object> group_admin_permissions = new HashMap<String, Object>();
+
+        sql.put("enabled", false);
+        sql.put("dbms", "MYSQL");
+        sql.put("uri", "jdbc:mysql://localhost:3306/permissionsbukkit");
+        sql.put("username", "exampleuser");
+        sql.put("password", "examplepass");
         
         messages.put("build", "&cYou do not have permission to build here.");
 
@@ -297,6 +308,7 @@ public class PermissionsPlugin extends JavaPlugin {
         groups.put("user", group_user);
         groups.put("admin", group_admin);
 
+        getConfiguration().setProperty("sql", sql);
         getConfiguration().setProperty("messages", messages);
         getConfiguration().setProperty("users", users);
         getConfiguration().setProperty("groups", groups);
@@ -330,6 +342,9 @@ public class PermissionsPlugin extends JavaPlugin {
             "# will be displayed to the player if PermissionsBukkit prevents them from",
             "# building, digging, or interacting with a block. Use '&' characters to",
             "# signify color codes.",
+            "#",
+            "# If you set the 'enabled:' property of 'sql:' to true, the 'users:' and",
+            "# 'groups:' sections will be ignored, in favor of the SQL database specified.",
             "");
         getConfiguration().save();
     }
