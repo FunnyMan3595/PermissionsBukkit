@@ -138,21 +138,21 @@ public class SQLData extends PermissionsData {
     }
 
     public Boolean getUserPermission(String user, String world, String permission) throws DataAccessException {
-        return getBoolean(get_user_permission, user.toLowerCase(), world, permission);
+        return getBoolean(get_user_permission, user, world, permission);
     }
 
     public Boolean getGroupPermission(String group, String world, String permission) throws DataAccessException {
-        return getBoolean(get_group_permission, group.toLowerCase(), world, permission);
+        return getBoolean(get_group_permission, group, world, permission);
     }
 
     // Returns null if no such user.
     public Integer getUserID(String user) throws DataAccessException {
-        return getInteger(get_user_id, user.toLowerCase());
+        return getInteger(get_user_id, user);
     }
 
     // Returns null if no such group.
     public Integer getGroupID(String group) throws DataAccessException {
-        return getInteger(get_group_id, group.toLowerCase());
+        return getInteger(get_group_id, group);
     }
 
     /*
@@ -279,23 +279,23 @@ public class SQLData extends PermissionsData {
     }
 
     public HashSet<String> getGroupMembership(String user) throws DataAccessException {
-        return getHashSet(get_user_groups, user.toLowerCase());
+        return getHashSet(get_user_groups, user);
     }
 
     public HashSet<String> getGroupParents(String group) throws DataAccessException {
-        return getHashSet(get_group_parents, group.toLowerCase());
+        return getHashSet(get_group_parents, group);
     }
 
     public HashSet<String> getGroupChildren(String group) throws DataAccessException {
-        return getHashSet(get_group_children, group.toLowerCase());
+        return getHashSet(get_group_children, group);
     }
 
     public HashMap<String,Boolean> getUserPermissions(String user, String world) throws DataAccessException {
-        return getHashMap(get_user_permissions, user.toLowerCase(), world);
+        return getHashMap(get_user_permissions, user, world);
     }
 
     public HashMap<String,Boolean> getGroupPermissions(String group, String world) throws DataAccessException {
-        return getHashMap(get_group_permissions, group.toLowerCase(), world);
+        return getHashMap(get_group_permissions, group, world);
     }
 
     // These return true if a change was made.
@@ -304,8 +304,8 @@ public class SQLData extends PermissionsData {
             for (String group : getGroupMembership(user)) {
                 leaveGroup(user, group);
             }
-            execute(remove_all_user_permissions, user.toLowerCase());
-            execute(remove_user, user.toLowerCase());
+            execute(remove_all_user_permissions, user);
+            execute(remove_user, user);
 
             return true;
         } else {
@@ -317,7 +317,7 @@ public class SQLData extends PermissionsData {
     public synchronized boolean removeGroup(String group, boolean even_if_default) throws DataAccessException {
         String default_group = getDefaultGroup();
         if (default_group != null && !even_if_default) {
-            if (group.toLowerCase().equals(default_group)) {
+            if (group.equalsIgnoreCase(default_group)) {
                 throw new IllegalArgumentException("That's the default group.");
             }
         }
@@ -326,8 +326,8 @@ public class SQLData extends PermissionsData {
             for (String parent : getGroupParents(group)) {
                 removeGroupParent(group, parent);
             }
-            execute(remove_all_group_permissions, group.toLowerCase());
-            execute(remove_group, group.toLowerCase());
+            execute(remove_all_group_permissions, group);
+            execute(remove_group, group);
 
             return true;
         } else {
@@ -336,35 +336,35 @@ public class SQLData extends PermissionsData {
     }
 
     public boolean joinGroup(String player, String group) throws DataAccessException {
-        return execute(add_group_membership, player.toLowerCase(), group.toLowerCase()) > 0;
+        return execute(add_group_membership, player, group) > 0;
     }
 
     public boolean leaveGroup(String player, String group) throws DataAccessException {
-        return execute(remove_group_membership, player.toLowerCase(), group.toLowerCase()) > 0;
+        return execute(remove_group_membership, player, group) > 0;
     }
 
     public boolean addGroupParent(String child, String parent) throws DataAccessException {
-        return execute(add_group_inheritance, child.toLowerCase(), parent.toLowerCase()) > 0;
+        return execute(add_group_inheritance, child, parent) > 0;
     }
 
     public boolean removeGroupParent(String child, String parent) throws DataAccessException {
-        return execute(remove_group_inheritance, child.toLowerCase(), parent.toLowerCase()) > 0;
+        return execute(remove_group_inheritance, child, parent) > 0;
     }
 
     // These return the old value, null for not set.
     public synchronized Boolean addGroupPermission(String group, String world, String permission, Boolean value) throws DataAccessException {
         Boolean old_value = getGroupPermission(group, world, permission);
         if (old_value != null) {
-            execute(remove_group_permission, group.toLowerCase(), world, permission);
+            execute(remove_group_permission, group, world, permission);
         }
-        execute(add_group_permission, group.toLowerCase(), world, permission);
+        execute(add_group_permission, group, world, permission);
         return old_value;
     }
 
     public synchronized Boolean removeGroupPermission(String group, String world, String permission) throws DataAccessException {
         Boolean old_value = getGroupPermission(group, world, permission);
         if (old_value != null) {
-            execute(remove_group_permission, group.toLowerCase(), world, permission);
+            execute(remove_group_permission, group, world, permission);
         }
         return old_value;
     }
@@ -372,16 +372,16 @@ public class SQLData extends PermissionsData {
     public synchronized Boolean addUserPermission(String user, String world, String permission, Boolean value) throws DataAccessException {
         Boolean old_value = getUserPermission(user, world, permission);
         if (old_value != null) {
-            execute(remove_user_permission, user.toLowerCase(), world, permission);
+            execute(remove_user_permission, user, world, permission);
         }
-        execute(add_user_permission, user.toLowerCase(), world, permission);
+        execute(add_user_permission, user, world, permission);
         return old_value;
     }
 
     public synchronized Boolean removeUserPermission(String user, String world, String permission) throws DataAccessException {
         Boolean old_value = getUserPermission(user, world, permission);
         if (old_value != null) {
-            execute(remove_user_permission, user.toLowerCase(), world, permission);
+            execute(remove_user_permission, user, world, permission);
         }
         return old_value;
     }
