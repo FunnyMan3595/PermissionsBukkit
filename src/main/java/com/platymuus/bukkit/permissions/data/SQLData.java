@@ -25,6 +25,9 @@ public class SQLData extends PermissionsData {
     protected PreparedStatement remove_all_user_permissions;
     protected PreparedStatement remove_group_membership;
     protected PreparedStatement remove_group_inheritance;
+    protected PreparedStatement remove_all_user_groups;
+    protected PreparedStatement remove_all_group_members;
+    protected PreparedStatement remove_all_group_inheritance;
 
     protected PreparedStatement get_users;
     protected PreparedStatement get_groups;
@@ -66,6 +69,9 @@ public class SQLData extends PermissionsData {
         remove_all_user_permissions = null;
         remove_group_membership = null;
         remove_group_inheritance = null;
+        remove_all_user_groups = null;
+        remove_all_group_members = null;
+        remove_all_group_inheritance = null;
 
         get_groups = null;
         get_users = null;
@@ -109,10 +115,10 @@ public class SQLData extends PermissionsData {
         set_default_group = db.prepareStatement("UPDATE Groups SET is_default=(groupname=?);");
         add_group = db.prepareStatement("INSERT INTO Groups SET groupname=?;");
         add_user = db.prepareStatement("INSERT INTO Users SET username=?;");
-        add_group_permission = db.prepareStatement("INSERT INTO GroupPermissions SET groupid=?, world=?, permission=?;");
-        add_user_permission = db.prepareStatement("INSERT INTO UserPermissions SET userid=?, world=?, permission=?;");
-        add_group_membership = db.prepareStatement("INSERT INTO GroupMembership SET groupid=?, userid=?;");
-        add_group_inheritance = db.prepareStatement("INSERT INTO GroupInheritance SET parent=?, child=?;");
+        add_group_permission = db.prepareStatement("INSERT INTO GroupPermissions  SET groupid=(SELECT groupid FROM Groups WHERE groupname=?), world=?, permission=?;");
+        add_user_permission = db.prepareStatement("INSERT INTO UserPermissions SET userid=(SELECT userid FROM Users WHERE username=?), world=?, permission=?;");
+        add_group_membership = db.prepareStatement("INSERT INTO GroupMembership SET groupid=(SELECT groupid FROM Groups WHERE groupname=?), userid=(SELECT userid FROM Users WHERE username=?);");
+        add_group_inheritance = db.prepareStatement("INSERT INTO GroupInheritance SET parent=(SELECT groupid FROM Groups where groupname=?), child=(SELECT groupid FROM Groups WHERE groupname=?);");
 
         remove_group = db.prepareStatement("DELETE FROM Groups WHERE groupname=?;");
         remove_user = db.prepareStatement("DELETE FROM Users WHERE username=?;");
@@ -122,6 +128,9 @@ public class SQLData extends PermissionsData {
         remove_all_user_permissions = db.prepareStatement("DELETE FROM GroupPermissions USING GroupPermissions NATURAL JOIN Groups WHERE username=?;");
         remove_group_membership = db.prepareStatement("DELETE FROM GroupMembership USING Groups NATURAL JOIN (GroupMembership NATURAL JOIN Users) WHERE groupname=? AND username=?;");
         remove_group_inheritance = db.prepareStatement("DELETE FROM Rel USING Groups as p INNER JOIN (GroupInheritance as Rel INNER JOIN Groups as c ON Rel.child=c.groupid) ON Rel.parent=p.groupid WHERE p.groupname=? AND c.groupname=?;");
+        remove_all_user_groups = db.prepareStatement("DELETE FROM GroupMembership USING GroupMembership NATURAL JOIN Users WHERE username=?;");
+        remove_all_group_members = db.prepareStatement("DELETE FROM GroupMembership USING Groups NATURAL JOIN GroupMembership WHERE groupname=?;");
+        remove_all_group_inheritance = db.prepareStatement("DELETE FROM Rel USING Groups INNER JOIN ON Rel.parent=groupid OR Rel.child=groupid WHERE groupname=?;");
 
         get_users = db.prepareStatement("SELECT username FROM Users;");
         get_groups = db.prepareStatement("SELECT groupname FROM Groups;");
@@ -143,6 +152,24 @@ public class SQLData extends PermissionsData {
 
     public Boolean getGroupPermission(String group, String world, String permission) throws DataAccessException {
         return getBoolean(get_group_permission, group, world, permission);
+    }
+
+    // Returns true if the user needed to be created.
+    public synchronized boolean createUser(String user) throws DataAccessException {
+        if (getUserID(user) == null) {
+            execute(add_user, user);
+            return true;
+        }
+        return false;
+    }
+
+    // Returns true if the group needed to be created.
+    public synchronized boolean createGroup(String group) throws DataAccessException {
+        if (getGroupID(group) == null) {
+            execute(add_group, group);
+            return true;
+        }
+        return false;
     }
 
     // Returns null if no such user.
@@ -305,6 +332,7 @@ public class SQLData extends PermissionsData {
                 leaveGroup(user, group);
             }
             execute(remove_all_user_permissions, user);
+            execute(remove_all_user_groups, user);
             execute(remove_user, user);
 
             return true;
@@ -326,6 +354,8 @@ public class SQLData extends PermissionsData {
             for (String parent : getGroupParents(group)) {
                 removeGroupParent(group, parent);
             }
+            execute(remove_all_group_members, group);
+            execute(remove_all_group_inheritance, group);
             execute(remove_all_group_permissions, group);
             execute(remove_group, group);
 
@@ -335,7 +365,9 @@ public class SQLData extends PermissionsData {
         }
     }
 
-    public boolean joinGroup(String player, String group) throws DataAccessException {
+    public synchronized boolean joinGroup(String player, String group) throws DataAccessException {
+        createUser(player);
+        createGroup(group);
         return execute(add_group_membership, player, group) > 0;
     }
 
@@ -343,7 +375,9 @@ public class SQLData extends PermissionsData {
         return execute(remove_group_membership, player, group) > 0;
     }
 
-    public boolean addGroupParent(String child, String parent) throws DataAccessException {
+    public synchronized boolean addGroupParent(String child, String parent) throws DataAccessException {
+        createGroup(parent);
+        createGroup(child);
         return execute(add_group_inheritance, child, parent) > 0;
     }
 
@@ -353,6 +387,7 @@ public class SQLData extends PermissionsData {
 
     // These return the old value, null for not set.
     public synchronized Boolean addGroupPermission(String group, String world, String permission, Boolean value) throws DataAccessException {
+        createGroup(group);
         Boolean old_value = getGroupPermission(group, world, permission);
         if (old_value != null) {
             execute(remove_group_permission, group, world, permission);
@@ -370,6 +405,7 @@ public class SQLData extends PermissionsData {
     }
 
     public synchronized Boolean addUserPermission(String user, String world, String permission, Boolean value) throws DataAccessException {
+        createUser(user);
         Boolean old_value = getUserPermission(user, world, permission);
         if (old_value != null) {
             execute(remove_user_permission, user, world, permission);
