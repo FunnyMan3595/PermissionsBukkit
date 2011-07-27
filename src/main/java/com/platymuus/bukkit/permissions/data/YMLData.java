@@ -60,6 +60,14 @@ public class YMLData {
         return values;
     }
 
+    public boolean userExists(String user) throws DataAccessException {
+        return getNodeMatches("users.%" + user).size() > 0;
+    }
+
+    public boolean groupExists(String group) throws DataAccessException {
+        return getNodeMatches("groups.%" + group).size() > 0;
+    }
+
     public HashSet<String> getUsers() throws DataAccessException {
         return getMatches("users.?");
     }

@@ -10,6 +10,8 @@ public abstract class PermissionsData {
         this.config = config;
     }
 
+    public abstract boolean userExists(String user) throws DataAccessException;
+    public abstract boolean groupExists(String group) throws DataAccessException;
     public abstract HashSet<String> getUsers() throws DataAccessException;
     public abstract HashSet<String> getGroups() throws DataAccessException;
     public abstract String getDefaultGroup() throws DataAccessException;

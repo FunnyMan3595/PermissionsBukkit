@@ -287,6 +287,13 @@ public class SQLData extends PermissionsData {
     /*
      *  Implementations of abstract methods from PermissionsData.
      */
+    public boolean userExists(String user) throws DataAccessException {
+        return getUserID(user) != null;
+    }
+
+    public boolean groupExists(String group) throws DataAccessException {
+        return getUserID(group) != null;
+    }
 
     public HashSet<String> getUsers() throws DataAccessException {
         return getHashSet(get_users);
