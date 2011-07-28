@@ -399,7 +399,9 @@ public class SQLData extends PermissionsData {
         if (old_value != null) {
             execute(remove_group_permission, group, world, permission);
         }
-        execute(add_group_permission, group, world, permission);
+        if (value != null) {
+            execute(add_group_permission, group, world, permission);
+        }
         return old_value;
     }
 
@@ -417,7 +419,9 @@ public class SQLData extends PermissionsData {
         if (old_value != null) {
             execute(remove_user_permission, user, world, permission);
         }
-        execute(add_user_permission, user, world, permission);
+        if (value != null) {
+            execute(add_user_permission, user, world, permission);
+        }
         return old_value;
     }
 
