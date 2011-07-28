@@ -2,39 +2,43 @@ package com.platymuus.bukkit.permissions.data;
 
 import java.util.*;
 import org.bukkit.util.config.Configuration;
+import org.bukkit.util.config.ConfigurationNode;
 
-public class YMLData {
+public class YMLData extends PermissionsData {
     public YMLData(Configuration config) throws DataAccessException {
         super(config);
     }
 
     @SuppressWarnings("unchecked")
-    protected HashMap<String, Object> getNodeMatches(String path) {
-        HashMap<String, Object> nodes = new HashMap<String, Object>();
-        nodes.put(null, config);
+    protected HashMap<String, String> getNodeMatches(String path) {
+        HashMap<String, String> nodes = new HashMap<String, String>();
+        nodes.put(null, "");
 
         for (String piece : path.split(".")) {
-            HashMap<String, Object> new_nodes = new HashMap<String, Object>();
+            HashMap<String, String> new_nodes = new HashMap<String, String>();
             if (piece.startsWith("%")) {
                 String match = piece.substring(1);
                 for (String key : nodes.keySet()) {
-                    ConfigurationNode node = new ConfigurationNode((Map<String, Object>)nodes.get(key));
+                    String node_name = nodes.get(key);
+                    ConfigurationNode node = config.getNode(node_name);
                     for (String childname : node.getKeys()) {
                         if (childname.equalsIgnoreCase(match)) {
-                            new_nodes.put(key, node.getProperty(childname));
+                            new_nodes.put(key, node_name + "." + childname);
                             break;
                         }
                     }
                 }
             } else if (piece.equals("?")) {
-                ConfigurationNode node = new ConfigurationNode((Map<String, Object>)nodes.get(null));
+                String node_name = nodes.get(null);
+                ConfigurationNode node = config.getNode(node_name);
                 for (String childname : node.getKeys()) {
-                    new_nodes.put(childname, node.getProperty(childname));
+                    new_nodes.put(childname, node_name + "." + childname);
                 }
             } else {
                 for (String key : nodes.keySet()) {
-                    ConfigurationNode node = new ConfigurationNode((Map<String, Object>)nodes.get(key));
-                    new_nodes.put(key, node.getProperty(piece));
+                    String node_name = nodes.get(key);
+                    ConfigurationNode node = config.getNode(node_name);
+                    new_nodes.put(key, node_name + "." + key);
                 }
             }
 
@@ -52,9 +56,9 @@ public class YMLData {
     protected HashMap<String, Boolean> getMatchValues(String path) {
         HashMap<String, Boolean> values = new HashMap<String, Boolean>();
 
-        HashMap<String, Object> raw_values = getNodeMatches(path);
-        for (key : raw_values.keySet()) {
-            values.put(key, (Boolean) raw_values.get(key));
+        HashMap<String, String> matches = getNodeMatches(path);
+        for (String key : matches.keySet()) {
+            values.put(key, config.getBoolean(matches.get(key), false));
         }
 
         return values;
@@ -107,9 +111,9 @@ public class YMLData {
 
 
     // These return true if a change was made.
-    public boolean removeUser(String group) throws DataAccessException {
-        HashMap<String> matches = getMatches("users.%" + user);
-        for (match : matches) {
+    public boolean removeUser(String user) throws DataAccessException {
+        HashSet<String> matches = getMatches("users.%" + user);
+        for (String match : matches) {
             config.removeProperty("users." + match);
         }
         return matches.size() > 0;
@@ -118,26 +122,41 @@ public class YMLData {
     // Throws IllegalArgumentException if you try to remove the default group without even_if_default=true.
     public boolean removeGroup(String group, boolean even_if_default) throws DataAccessException {
         if (group.equalsIgnoreCase("default") && !even_if_default) {
-            throw IllegalArgumentException("That's the default group!");
+            throw new IllegalArgumentException("That's the default group!");
         }
 
-        HashMap<String> matches = getMatches("groups.%" + group);
-        for (match : matches) {
+        HashSet<String> matches = getMatches("groups.%" + group);
+        for (String match : matches) {
             config.removeProperty("groups." + match);
         }
         return matches.size() > 0;
     }
 
     public boolean joinGroup(String player, String group) throws DataAccessException {
+        throw new UnsupportedOperationException();
     }
 
-    public boolean leaveGroup(String player, String group) throws DataAccessException;
-    public boolean addGroupParent(String child, String parent) throws DataAccessException;
-    public boolean removeGroupParent(String child, String parent) throws DataAccessException;
+    public boolean leaveGroup(String player, String group) throws DataAccessException {
+        throw new UnsupportedOperationException();
+    }
+    public boolean addGroupParent(String child, String parent) throws DataAccessException {
+        throw new UnsupportedOperationException();
+    }
+    public boolean removeGroupParent(String child, String parent) throws DataAccessException {
+        throw new UnsupportedOperationException();
+    }
 
     // These return the old value, null for not set.
-    public Boolean addGroupPermission(String group, String world, String permission, Boolean value) throws DataAccessException;
-    public Boolean removeGroupPermission(String group, String world, String permission) throws DataAccessException;
-    public Boolean addUserPermission(String user, String world, String permission, Boolean value) throws DataAccessException;
-    public Boolean removeUserPermission(String user, String world, String permission) throws DataAccessException;
+    public Boolean addGroupPermission(String group, String world, String permission, Boolean value) throws DataAccessException {
+        throw new UnsupportedOperationException();
+    }
+    public Boolean removeGroupPermission(String group, String world, String permission) throws DataAccessException {
+        throw new UnsupportedOperationException();
+    }
+    public Boolean addUserPermission(String user, String world, String permission, Boolean value) throws DataAccessException {
+        throw new UnsupportedOperationException();
+    }
+    public Boolean removeUserPermission(String user, String world, String permission) throws DataAccessException {
+        throw new UnsupportedOperationException();
+    }
 }
