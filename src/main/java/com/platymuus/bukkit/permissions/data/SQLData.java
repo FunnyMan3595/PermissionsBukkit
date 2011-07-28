@@ -90,7 +90,10 @@ public class SQLData extends PermissionsData {
 
     public SQLData(Configuration config) throws DataAccessException {
         super(config);
-        init("a", "b", "c");
+        String url = config.getString("sql.url");
+        String user = config.getString("sql.user");
+        String password = config.getString("sql.password");
+        init(url, user, password);
     }
 
     public void init(String url, String user, String password) throws SQLException {
