@@ -131,7 +131,7 @@ public class SQLData extends PermissionsData {
         direct = db.createStatement();
 
         direct.executeUpdate("CREATE TABLE IF NOT EXISTS Users (userid INT NOT NULL AUTO_INCREMENT, username VARCHAR(64) NOT NULL, PRIMARY KEY(userid), INDEX (username));");
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS Groups (groupid INT NOT NULL AUTO_INCREMENT, username VARCHAR(64) NOT NULL, PRIMARY KEY(groupid), INDEX (groupname));");
+        direct.executeUpdate("CREATE TABLE IF NOT EXISTS Groups (groupid INT NOT NULL AUTO_INCREMENT, groupname VARCHAR(64) NOT NULL, PRIMARY KEY(groupid), INDEX (groupname));");
         direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupPermissions (groupid INT NOT NULL, world VARCHAR(64) NOT NULL, permission VARCHAR(64) NOT NULL, value BOOLEAN NOT NULL, PRIMARY KEY(groupid, world, permission), INDEX(groupid));");
         direct.executeUpdate("CREATE TABLE IF NOT EXISTS UserPermissions (userid INT NOT NULL, world VARCHAR(64) NOT NULL, permission VARCHAR(64) NOT NULL, value BOOLEAN NOT NULL, PRIMARY KEY(userid, world, permission), INDEX(userid));");
         direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupMembership (groupid INT NOT NULL, userid INT NOT NULL, PRIMARY KEY(groupid,userid), INDEX(groupid), INDEX(userid));");
