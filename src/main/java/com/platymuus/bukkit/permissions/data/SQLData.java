@@ -97,6 +97,15 @@ public class SQLData extends PermissionsData {
         String url = config.getString("sql.url");
         String user = config.getString("sql.user");
         String password = config.getString("sql.password");
+
+        if (user==null) {
+            throw new DataAccessException("sql.user is null!");
+        } else if (password==null) {
+            throw new DataAccessException("sql.password is null!");
+        } else if (url==null) {
+            throw new DataAccessException("sql.url is null!");
+        }
+
         try {
             init(url, user, password);
         } catch (SQLException e) {
