@@ -156,6 +156,7 @@ class PermissionsCommand implements CommandExecutor {
             try {
                 groupCommand(sender, command, split);
             } catch (DataAccessException e) {
+                plugin.logError(e);
                 sender.sendMessage(ChatColor.RED + "An error occured while handling your request.");
             }
             return true;
@@ -167,6 +168,7 @@ class PermissionsCommand implements CommandExecutor {
             try {
                 playerCommand(sender, command, split);
             } catch (DataAccessException e) {
+                plugin.logError(e);
                 sender.sendMessage(ChatColor.RED + "An error occured while handling your request.");
             }
             return true;

@@ -1,6 +1,6 @@
 package com.platymuus.bukkit.permissions;
 
-import java.io.File;
+import java.io.*;
 import java.util.*;
 
 import org.bukkit.entity.Player;
@@ -161,6 +161,12 @@ public class PermissionsPlugin extends JavaPlugin {
 
     protected PermissionsData getData() {
         return data;
+    }
+
+    protected void logError(Exception e) {
+        StringWriter sw = new StringWriter();
+        e.printStackTrace(new PrintWriter(sw));
+        getServer().getLogger().warning(sw.toString());
     }
 
     // -- Private stuff
