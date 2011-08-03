@@ -1,6 +1,7 @@
 package com.platymuus.bukkit.permissions.data;
 
 import com.mysql.jdbc.jdbc2.optional.MysqlDataSource;
+import java.io.*;
 import java.sql.*;
 import java.util.*;
 import org.bukkit.util.config.Configuration;
@@ -44,6 +45,22 @@ public class SQLData extends PermissionsData {
     protected PreparedStatement get_user_groups;
     protected PreparedStatement get_group_parents;
     protected PreparedStatement get_group_children;
+
+    private PrintWriter screamfile;
+    private void scream() {
+        scream("Aieeeee!");
+    }
+    private void scream(String message) {
+        try {
+            throw new DataAccessException(message);
+        } catch (DataAccessException e) {
+            try {
+                e.printStackTrace(screamfile);
+                screamfile.flush();
+            } catch (Exception e2) {
+            }
+        }
+    }
 
     public void close() {
         try {
@@ -94,6 +111,11 @@ public class SQLData extends PermissionsData {
 
     public SQLData(Configuration config) throws DataAccessException {
         super(config);
+        try {
+            screamfile = new PrintWriter(new FileWriter("pbscream.txt"));
+        } catch (Exception e) {
+        }
+
         String url = config.getString("sql.uri");
         String user = config.getString("sql.username");
         String password = config.getString("sql.password");
@@ -125,52 +147,53 @@ public class SQLData extends PermissionsData {
         server.setPassword(password);
         server.setUseServerPrepStmts(true);
         server.setCachePreparedStatements(true);
-        server.setPreparedStatementCacheSize(30);
+        server.setPreparedStatementCacheSize(50);
 
         db = server.getConnection();
         direct = db.createStatement();
 
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS Users (userid INT NOT NULL AUTO_INCREMENT, username VARCHAR(64) NOT NULL, PRIMARY KEY(userid), INDEX (username));");
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS Groups (groupid INT NOT NULL AUTO_INCREMENT, groupname VARCHAR(64) NOT NULL, PRIMARY KEY(groupid), INDEX (groupname));");
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupPermissions (groupid INT NOT NULL, world VARCHAR(64) NOT NULL, permission VARCHAR(64) NOT NULL, value BOOLEAN NOT NULL, PRIMARY KEY(groupid, world, permission), INDEX(groupid));");
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS UserPermissions (userid INT NOT NULL, world VARCHAR(64) NOT NULL, permission VARCHAR(64) NOT NULL, value BOOLEAN NOT NULL, PRIMARY KEY(userid, world, permission), INDEX(userid));");
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupMembership (groupid INT NOT NULL, userid INT NOT NULL, PRIMARY KEY(groupid,userid), INDEX(groupid), INDEX(userid));");
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupInheritance (parent INT NOT NULL, child INT NOT NULL, PRIMARY KEY(parent,child), INDEX(parent), INDEX(child));");
+        direct.executeUpdate("CREATE TABLE IF NOT EXISTS Users (userid INT NOT NULL AUTO_INCREMENT, username VARCHAR(64) NOT NULL, PRIMARY KEY(userid), INDEX (username))");
+        direct.executeUpdate("CREATE TABLE IF NOT EXISTS Groups (groupid INT NOT NULL AUTO_INCREMENT, groupname VARCHAR(64) NOT NULL, PRIMARY KEY(groupid), INDEX (groupname))");
+        direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupPermissions (groupid INT NOT NULL, world VARCHAR(64) NOT NULL, permission VARCHAR(64) NOT NULL, value BOOLEAN NOT NULL, PRIMARY KEY(groupid, world, permission), INDEX(groupid))");
+        direct.executeUpdate("CREATE TABLE IF NOT EXISTS UserPermissions (userid INT NOT NULL, world VARCHAR(64) NOT NULL, permission VARCHAR(64) NOT NULL, value BOOLEAN NOT NULL, PRIMARY KEY(userid, world, permission), INDEX(userid))");
+        direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupMembership (groupid INT NOT NULL, userid INT NOT NULL, PRIMARY KEY(groupid,userid), INDEX(groupid), INDEX(userid))");
+        direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupInheritance (parent INT NOT NULL, child INT NOT NULL, PRIMARY KEY(parent,child), INDEX(parent), INDEX(child))");
 
-        set_default_group = db.prepareStatement("UPDATE Groups SET is_default=(groupname=?);");
-        add_group = db.prepareStatement("INSERT INTO Groups SET groupname=?;");
-        add_user = db.prepareStatement("INSERT INTO Users SET username=?;");
-        add_group_permission = db.prepareStatement("INSERT INTO GroupPermissions  SET groupid=(SELECT groupid FROM Groups WHERE groupname=?), world=?, permission=?;");
-        add_user_permission = db.prepareStatement("INSERT INTO UserPermissions SET userid=(SELECT userid FROM Users WHERE username=?), world=?, permission=?;");
-        add_group_membership = db.prepareStatement("INSERT INTO GroupMembership SET groupid=(SELECT groupid FROM Groups WHERE groupname=?), userid=(SELECT userid FROM Users WHERE username=?);");
-        add_group_inheritance = db.prepareStatement("INSERT INTO GroupInheritance SET parent=(SELECT groupid FROM Groups where groupname=?), child=(SELECT groupid FROM Groups WHERE groupname=?);");
+        set_default_group = db.prepareStatement("UPDATE Groups SET is_default=(groupname=?)");
+        add_group = db.prepareStatement("INSERT INTO Groups SET groupname=?");
+        add_user = db.prepareStatement("INSERT INTO Users SET username=?");
+        add_group_permission = db.prepareStatement("INSERT INTO GroupPermissions  SET groupid=(SELECT groupid FROM Groups WHERE groupname=?), world=?, permission=?, value=?");
+        add_user_permission = db.prepareStatement("INSERT INTO UserPermissions SET userid=(SELECT userid FROM Users WHERE username=?), world=?, permission=?, value=?");
+        add_group_membership = db.prepareStatement("INSERT IGNORE INTO GroupMembership SET groupid=(SELECT groupid FROM Groups WHERE groupname=?), userid=(SELECT userid FROM Users WHERE username=?)");
+        add_group_inheritance = db.prepareStatement("INSERT IGNORE INTO GroupInheritance SET parent=(SELECT groupid FROM Groups where groupname=?), child=(SELECT groupid FROM Groups WHERE groupname=?)");
 
-        remove_group = db.prepareStatement("DELETE FROM Groups WHERE groupname=?;");
-        remove_user = db.prepareStatement("DELETE FROM Users WHERE username=?;");
-        remove_group_permission = db.prepareStatement("DELETE FROM GroupPermissions USING GroupPermissions NATURAL JOIN Groups WHERE groupname=? AND world=? AND permission=?;");
-        remove_all_group_permissions = db.prepareStatement("DELETE FROM GroupPermissions USING GroupPermissions NATURAL JOIN Groups WHERE groupname=?;");
-        remove_user_permission = db.prepareStatement("DELETE FROM UserPermissions USING UserPermissions NATURAL JOIN Users WHERE username=? AND world=? AND permission=?;");
-        remove_all_user_permissions = db.prepareStatement("DELETE FROM GroupPermissions USING GroupPermissions NATURAL JOIN Groups WHERE username=?;");
-        remove_group_membership = db.prepareStatement("DELETE FROM GroupMembership USING Groups NATURAL JOIN (GroupMembership NATURAL JOIN Users) WHERE groupname=? AND username=?;");
-        remove_group_inheritance = db.prepareStatement("DELETE FROM Rel USING Groups as p INNER JOIN (GroupInheritance as Rel INNER JOIN Groups as c ON Rel.child=c.groupid) ON Rel.parent=p.groupid WHERE p.groupname=? AND c.groupname=?;");
-        remove_all_user_groups = db.prepareStatement("DELETE FROM GroupMembership USING GroupMembership NATURAL JOIN Users WHERE username=?;");
-        remove_all_group_members = db.prepareStatement("DELETE FROM GroupMembership USING Groups NATURAL JOIN GroupMembership WHERE groupname=?;");
-        remove_all_group_inheritance = db.prepareStatement("DELETE FROM Rel USING Groups INNER JOIN ON Rel.parent=groupid OR Rel.child=groupid WHERE groupname=?;");
+        remove_group = db.prepareStatement("DELETE FROM Groups WHERE groupname=?");
+        remove_user = db.prepareStatement("DELETE FROM Users WHERE username=?");
+        remove_group_permission = db.prepareStatement("DELETE FROM GroupPermissions USING GroupPermissions NATURAL JOIN Groups WHERE groupname=? AND world=? AND permission=?");
+        remove_all_group_permissions = db.prepareStatement("DELETE FROM GroupPermissions USING GroupPermissions NATURAL JOIN Groups WHERE groupname=?");
+        remove_user_permission = db.prepareStatement("DELETE FROM UserPermissions USING UserPermissions NATURAL JOIN Users WHERE username=? AND world=? AND permission=?");
+        remove_all_user_permissions = db.prepareStatement("DELETE FROM GroupPermissions USING GroupPermissions NATURAL JOIN Groups WHERE username=?");
+        remove_group_membership = db.prepareStatement("DELETE FROM GroupMembership USING Groups NATURAL JOIN (GroupMembership NATURAL JOIN Users) WHERE groupname=? AND username=?");
+        remove_group_inheritance = db.prepareStatement("DELETE FROM Rel USING Groups as p INNER JOIN (GroupInheritance as Rel INNER JOIN Groups as c ON Rel.child=c.groupid) ON Rel.parent=p.groupid WHERE p.groupname=? AND c.groupname=?");
+        remove_all_user_groups = db.prepareStatement("DELETE FROM GroupMembership USING GroupMembership NATURAL JOIN Users WHERE username=?");
+        remove_all_group_members = db.prepareStatement("DELETE FROM GroupMembership USING Groups NATURAL JOIN GroupMembership WHERE groupname=?");
+        remove_all_group_inheritance = db.prepareStatement("DELETE FROM Rel USING Groups INNER JOIN ON Rel.parent=groupid OR Rel.child=groupid WHERE groupname=?");
 
-        get_users = db.prepareStatement("SELECT username FROM Users;");
-        get_groups = db.prepareStatement("SELECT groupname FROM Groups;");
-        get_default_group = db.prepareStatement("SELECT groupname FROM Groups WHERE is_default=true;");
-        get_user_id = db.prepareStatement("SELECT userid FROM Users WHERE username=?;");
-        get_group_id = db.prepareStatement("SELECT groupid FROM Groups WHERE groupname=?;");
-        get_group_permission = db.prepareStatement("SELECT value FROM GroupPermissions NATURAL JOIN Groups WHERE groupname=? AND world=? AND permission=?;");
-        get_user_permission = db.prepareStatement("SELECT value FROM UserPermissions NATURAL JOIN Users WHERE username=? AND world=? AND permission=?;");
-        get_group_permissions = db.prepareStatement("SELECT permission, value FROM GroupPermissions NATURAL JOIN Groups WHERE groupname=? AND world=?;");
-        get_user_permissions = db.prepareStatement("SELECT permission, value FROM UserPermissions NATURAL JOIN Users WHERE username=? AND world=?;");
-        get_group_worlds = db.prepareStatement("SELECT DISTINCT world FROM GroupPermissions NATURAL JOIN Groups WHERE groupname=?;");
-        get_user_worlds = db.prepareStatement("SELECT DISTINCT world FROM UserPermissions NATURAL JOIN Users WHERE username=?;");
-        get_user_groups = db.prepareStatement("SELECT groupname FROM Groups NATURAL JOIN GroupMembership NATURAL JOIN Users WHERE username=?;");
-        get_group_parents = db.prepareStatement("SELECT p.groupname FROM Groups as p INNER JOIN (GroupInheritance as Rel INNER JOIN Groups as c ON Rel.child=c.groupid) ON Rel.parent=p.groupid WHERE c.groupname=?;");
-        get_group_children = db.prepareStatement("SELECT c.groupname FROM Groups as p INNER JOIN (GroupInheritance as Rel INNER JOIN Groups as c ON Rel.child=c.groupid) ON Rel.parent=p.groupid WHERE p.groupname=?;");
+        get_users = db.prepareStatement("SELECT username FROM Users");
+        get_groups = db.prepareStatement("SELECT groupname FROM Groups");
+        get_default_group = db.prepareStatement("SELECT groupname FROM Groups WHERE is_default=true");
+        get_group_members = db.prepareStatement("SELECT username FROM Groups NATURAL JOIN (GroupMembership NATURAL JOIN Users) WHERE groupname=?");
+        get_user_id = db.prepareStatement("SELECT userid FROM Users WHERE username=?");
+        get_group_id = db.prepareStatement("SELECT groupid FROM Groups WHERE groupname=?");
+        get_group_permission = db.prepareStatement("SELECT value FROM GroupPermissions NATURAL JOIN Groups WHERE groupname=? AND world=? AND permission=?");
+        get_user_permission = db.prepareStatement("SELECT value FROM UserPermissions NATURAL JOIN Users WHERE username=? AND world=? AND permission=?");
+        get_group_permissions = db.prepareStatement("SELECT permission, value FROM GroupPermissions NATURAL JOIN Groups WHERE groupname=? AND world=?");
+        get_user_permissions = db.prepareStatement("SELECT permission, value FROM UserPermissions NATURAL JOIN Users WHERE username=? AND world=?");
+        get_group_worlds = db.prepareStatement("SELECT DISTINCT world FROM GroupPermissions NATURAL JOIN Groups WHERE groupname=?");
+        get_user_worlds = db.prepareStatement("SELECT DISTINCT world FROM UserPermissions NATURAL JOIN Users WHERE username=?");
+        get_user_groups = db.prepareStatement("SELECT groupname FROM Groups NATURAL JOIN (GroupMembership NATURAL JOIN Users) WHERE username=?");
+        get_group_parents = db.prepareStatement("SELECT p.groupname FROM Groups as p INNER JOIN (GroupInheritance as Rel INNER JOIN Groups as c ON Rel.child=c.groupid) ON Rel.parent=p.groupid WHERE c.groupname=?");
+        get_group_children = db.prepareStatement("SELECT c.groupname FROM Groups as p INNER JOIN (GroupInheritance as Rel INNER JOIN Groups as c ON Rel.child=c.groupid) ON Rel.parent=p.groupid WHERE p.groupname=?");
     }
 
     public Boolean getUserPermission(String user, String world, String permission) throws DataAccessException {
@@ -214,21 +237,22 @@ public class SQLData extends PermissionsData {
      *  SQLExceptions into PermissionsDataExceptions.
      */
 
-    protected synchronized ResultSet query(PreparedStatement statement, String ... parameters) throws DataAccessException {
+    protected synchronized ResultSet query(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         try {
             for (int i=0; i<parameters.length; i++) {
-                statement.setString(i+1, parameters[i]);
+                statement.setObject(i+1, parameters[i]);
             }
-            return statement.executeQuery();
+            ResultSet result = statement.executeQuery();
+            return result;
         } catch (SQLException e) {
             throw new DataAccessException("Unable to query database.", e);
         }
     }
 
-    protected synchronized int execute(PreparedStatement statement, String ... parameters) throws DataAccessException {
+    protected synchronized int execute(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         try {
             for (int i=0; i<parameters.length; i++) {
-                statement.setString(i+1, parameters[i]);
+                statement.setObject(i+1, parameters[i]);
             }
             return statement.executeUpdate();
         } catch (SQLException e) {
@@ -236,12 +260,11 @@ public class SQLData extends PermissionsData {
         }
     }
 
-    protected String getString(PreparedStatement statement, String ... parameters) throws DataAccessException {
+    protected String getString(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         ResultSet result = query(statement, parameters);
 
         try {
-            result.next();
-            if (!result.isAfterLast()) {
+            if (result.next()) {
                 return result.getString(1);
             }
         } catch (SQLException e) {
@@ -250,12 +273,11 @@ public class SQLData extends PermissionsData {
         return null;
     }
 
-    protected Boolean getBoolean(PreparedStatement statement, String ... parameters) throws DataAccessException {
+    protected Boolean getBoolean(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         ResultSet result = query(statement, parameters);
 
         try {
-            result.next();
-            if (!result.isAfterLast()) {
+            if (result.next()) {
                 return result.getBoolean(1);
             }
         } catch (SQLException e) {
@@ -264,12 +286,11 @@ public class SQLData extends PermissionsData {
         return null;
     }
 
-    protected Integer getInteger(PreparedStatement statement, String ... parameters) throws DataAccessException {
+    protected Integer getInteger(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         ResultSet result = query(statement, parameters);
 
         try {
-            result.next();
-            if (!result.isAfterLast()) {
+            if (result.next()) {
                 return result.getInt(1);
             }
         } catch (SQLException e) {
@@ -278,13 +299,12 @@ public class SQLData extends PermissionsData {
         return null;
     }
 
-    protected HashSet<String> getHashSet(PreparedStatement statement, String ... parameters) throws DataAccessException {
+    protected HashSet<String> getHashSet(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         ResultSet result = query(statement, parameters);
 
         HashSet<String> entries = new HashSet<String>();
         try {
-            result.next();
-            while (!result.isAfterLast()) {
+            while (result.next()) {
                 entries.add(result.getString(1));
             }
         } catch (SQLException e) {
@@ -294,13 +314,12 @@ public class SQLData extends PermissionsData {
         return entries;
     }
 
-    protected HashMap<String, Boolean> getHashMap(PreparedStatement statement, String ... parameters) throws DataAccessException {
+    protected HashMap<String, Boolean> getHashMap(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         ResultSet result = query(statement, parameters);
 
         HashMap<String, Boolean> entries = new HashMap<String, Boolean>();
         try {
-            result.next();
-            while (!result.isAfterLast()) {
+            while (result.next()) {
                 entries.put(result.getString(1), result.getBoolean(2));
             }
         } catch (SQLException e) {
@@ -319,7 +338,7 @@ public class SQLData extends PermissionsData {
     }
 
     public boolean groupExists(String group) throws DataAccessException {
-        return getUserID(group) != null;
+        return getGroupID(group) != null;
     }
 
     public HashSet<String> getUsers() throws DataAccessException {
@@ -410,21 +429,21 @@ public class SQLData extends PermissionsData {
     public synchronized boolean joinGroup(String player, String group) throws DataAccessException {
         createUser(player);
         createGroup(group);
-        return execute(add_group_membership, player, group) > 0;
+        return execute(add_group_membership, group, player) > 0;
     }
 
     public boolean leaveGroup(String player, String group) throws DataAccessException {
-        return execute(remove_group_membership, player, group) > 0;
+        return execute(remove_group_membership, group, player) > 0;
     }
 
     public synchronized boolean addGroupParent(String child, String parent) throws DataAccessException {
         createGroup(parent);
         createGroup(child);
-        return execute(add_group_inheritance, child, parent) > 0;
+        return execute(add_group_inheritance, parent, child) > 0;
     }
 
     public boolean removeGroupParent(String child, String parent) throws DataAccessException {
-        return execute(remove_group_inheritance, child, parent) > 0;
+        return execute(remove_group_inheritance, parent, child) > 0;
     }
 
     // These return the old value, null for not set.
@@ -435,7 +454,7 @@ public class SQLData extends PermissionsData {
             execute(remove_group_permission, group, world, permission);
         }
         if (value != null) {
-            execute(add_group_permission, group, world, permission);
+            execute(add_group_permission, group, world, permission, value);
         }
         return old_value;
     }
@@ -455,7 +474,7 @@ public class SQLData extends PermissionsData {
             execute(remove_user_permission, user, world, permission);
         }
         if (value != null) {
-            execute(add_user_permission, user, world, permission);
+            execute(add_user_permission, user, world, permission, value);
         }
         return old_value;
     }
