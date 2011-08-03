@@ -160,7 +160,7 @@ public class SQLData extends PermissionsData {
         direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupInheritance (parent INT NOT NULL, child INT NOT NULL, PRIMARY KEY(parent,child), INDEX(parent), INDEX(child))");
 
         set_default_group = db.prepareStatement("UPDATE Groups SET is_default=(groupname=?)");
-        add_group = db.prepareStatement("INSERT INTO Groups SET groupname=?");
+        add_group = db.prepareStatement("INSERT INTO Groups SET groupname=?, is_default=false");
         add_user = db.prepareStatement("INSERT INTO Users SET username=?");
         add_group_permission = db.prepareStatement("INSERT INTO GroupPermissions  SET groupid=(SELECT groupid FROM Groups WHERE groupname=?), world=?, permission=?, value=?");
         add_user_permission = db.prepareStatement("INSERT INTO UserPermissions SET userid=(SELECT userid FROM Users WHERE username=?), world=?, permission=?, value=?");
