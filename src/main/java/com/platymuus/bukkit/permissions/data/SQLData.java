@@ -94,16 +94,21 @@ public class SQLData extends PermissionsData {
 
     public SQLData(Configuration config) throws DataAccessException {
         super(config);
-        String url = config.getString("sql.url");
+        String url = config.getString("sql.uri");
         String user = config.getString("sql.username");
         String password = config.getString("sql.password");
+        String dbms = config.getString("sql.dbms");
+
+        if (dbms!=null && !dbms.equalsIgnoreCase("MYSQL")) {
+            throw new DataAccessException("Only MYSQL dbms is supported for now.");
+        }
 
         if (user==null) {
             throw new DataAccessException("sql.username is null!");
         } else if (password==null) {
             throw new DataAccessException("sql.password is null!");
         } else if (url==null) {
-            throw new DataAccessException("sql.url is null!");
+            throw new DataAccessException("sql.uri is null!");
         }
 
         try {
