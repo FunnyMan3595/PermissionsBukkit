@@ -95,11 +95,11 @@ public class SQLData extends PermissionsData {
     public SQLData(Configuration config) throws DataAccessException {
         super(config);
         String url = config.getString("sql.url");
-        String user = config.getString("sql.user");
+        String user = config.getString("sql.username");
         String password = config.getString("sql.password");
 
         if (user==null) {
-            throw new DataAccessException("sql.user is null!");
+            throw new DataAccessException("sql.username is null!");
         } else if (password==null) {
             throw new DataAccessException("sql.password is null!");
         } else if (url==null) {
