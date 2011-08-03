@@ -39,6 +39,8 @@ public class SQLData extends PermissionsData {
     protected PreparedStatement get_user_permission;
     protected PreparedStatement get_group_permissions;
     protected PreparedStatement get_user_permissions;
+    protected PreparedStatement get_group_worlds;
+    protected PreparedStatement get_user_worlds;
     protected PreparedStatement get_user_groups;
     protected PreparedStatement get_group_parents;
     protected PreparedStatement get_group_children;
@@ -83,6 +85,8 @@ public class SQLData extends PermissionsData {
         get_user_permission = null;
         get_group_permissions = null;
         get_user_permissions = null;
+        get_group_worlds = null;
+        get_user_worlds = null;
         get_user_groups = null;
         get_group_parents = null;
         get_group_children = null;
@@ -93,7 +97,11 @@ public class SQLData extends PermissionsData {
         String url = config.getString("sql.url");
         String user = config.getString("sql.user");
         String password = config.getString("sql.password");
-        init(url, user, password);
+        try {
+            init(url, user, password);
+        } catch (SQLException e) {
+            throw new DataAccessException("Unable to connect to database.", e);
+        }
     }
 
     public void init(String url, String user, String password) throws SQLException {
@@ -144,6 +152,8 @@ public class SQLData extends PermissionsData {
         get_user_permission = db.prepareStatement("SELECT value FROM UserPermissions NATURAL JOIN Users WHERE username=? AND world=? AND permission=?;");
         get_group_permissions = db.prepareStatement("SELECT permission, value FROM GroupPermissions NATURAL JOIN Groups WHERE groupname=? AND world=?;");
         get_user_permissions = db.prepareStatement("SELECT permission, value FROM UserPermissions NATURAL JOIN Users WHERE username=? AND world=?;");
+        get_group_worlds = db.prepareStatement("SELECT DISTINCT world FROM GroupPermissions NATURAL JOIN Groups WHERE groupname=?;");
+        get_user_worlds = db.prepareStatement("SELECT DISTINCT world FROM UserPermissions NATURAL JOIN Users WHERE username=?;");
         get_user_groups = db.prepareStatement("SELECT groupname FROM Groups NATURAL JOIN GroupMembership NATURAL JOIN Users WHERE username=?;");
         get_group_parents = db.prepareStatement("SELECT p.groupname FROM Groups as p INNER JOIN (GroupInheritance as Rel INNER JOIN Groups as c ON Rel.child=c.groupid) ON Rel.parent=p.groupid WHERE c.groupname=?;");
         get_group_children = db.prepareStatement("SELECT c.groupname FROM Groups as p INNER JOIN (GroupInheritance as Rel INNER JOIN Groups as c ON Rel.child=c.groupid) ON Rel.parent=p.groupid WHERE p.groupname=?;");
@@ -329,6 +339,14 @@ public class SQLData extends PermissionsData {
 
     public HashMap<String,Boolean> getUserPermissions(String user, String world) throws DataAccessException {
         return getHashMap(get_user_permissions, user, world);
+    }
+
+    public HashSet<String> getGroupWorlds(String group) throws DataAccessException {
+        return getHashSet(get_group_worlds, group);
+    }
+
+    public HashSet<String> getUserWorlds(String user) throws DataAccessException {
+        return getHashSet(get_user_worlds, user);
     }
 
     public HashMap<String,Boolean> getGroupPermissions(String group, String world) throws DataAccessException {

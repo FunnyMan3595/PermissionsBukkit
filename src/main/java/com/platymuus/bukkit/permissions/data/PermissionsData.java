@@ -24,11 +24,13 @@ public abstract class PermissionsData {
         for (String subgroup : subgroups) {
             users.addAll(getFullGroupMembers(subgroup));
         }
+        return users;
     }
 
     public HashSet<String> getFullGroupMembers(String group) throws DataAccessException {
         HashSet<String> users = getGroupMembers(group);
         users.addAll(getIndirectGroupMembers(group));
+        return users;
     }
 
     public abstract HashSet<String> getGroupMembership(String user) throws DataAccessException;
@@ -48,6 +50,8 @@ public abstract class PermissionsData {
     public abstract HashSet<String> getGroupChildren(String group) throws DataAccessException;
     public abstract HashMap<String,Boolean> getUserPermissions(String user, String world) throws DataAccessException;
     public abstract HashMap<String,Boolean> getGroupPermissions(String group, String world) throws DataAccessException;
+    public abstract HashSet<String> getUserWorlds(String user) throws DataAccessException;
+    public abstract HashSet<String> getGroupWorlds(String group) throws DataAccessException;
 
     public HashMap<String, Boolean> getInheritedUserPermissions(String user, String world) throws DataAccessException {
         HashMap<String, Boolean> permissions = new HashMap<String, Boolean>();

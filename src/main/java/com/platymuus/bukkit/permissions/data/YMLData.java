@@ -109,6 +109,14 @@ public class YMLData extends PermissionsData {
         return getMatchValues("groups.%" + group + ".permissions.?");
     }
 
+    public HashSet<String> getUserWorlds(String user) throws DataAccessException {
+        throw new UnsupportedOperationException();
+    }
+
+    public HashSet<String> getGroupWorlds(String group) throws DataAccessException {
+        throw new UnsupportedOperationException();
+    }
+
 
     // These return true if a change was made.
     public boolean removeUser(String user) throws DataAccessException {
