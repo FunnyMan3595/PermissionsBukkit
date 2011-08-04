@@ -1,10 +1,9 @@
 package com.platymuus.bukkit.permissions;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import org.bukkit.util.config.ConfigurationNode;
+import com.platymuus.bukkit.permissions.data.PermissionsData;
+import com.platymuus.bukkit.permissions.data.DataAccessException;
 
 /**
  * A class representing the global and world nodes attached to a player or group.
@@ -12,12 +11,12 @@ import org.bukkit.util.config.ConfigurationNode;
 public class PermissionInfo {
     
     private final PermissionsPlugin plugin;
-    private final ConfigurationNode node;
+    private final String name;
     private final String groupType;
     
-    protected PermissionInfo(PermissionsPlugin plugin, ConfigurationNode node, String groupType) {
+    protected PermissionInfo(PermissionsPlugin plugin, String name, String groupType) {
         this.plugin = plugin;
-        this.node = node;
+        this.name = name;
         this.groupType = groupType;
     }
     
@@ -25,16 +24,21 @@ public class PermissionInfo {
      * Gets the list of groups this group/player inherits permissions from.
      * @return The list of groups.
      */
-    public List<Group> getGroups() {
-        ArrayList<Group> result = new ArrayList<Group>();
+    public List<Group> getGroups() throws DataAccessException {
+        PermissionsData data = plugin.getData();
 
-        for (String key : node.getStringList(groupType, new ArrayList<String>())) {
-            Group group = plugin.getGroup(key);
-            if (group != null) {
-                result.add(group);
-            }
+        HashSet<String> names;
+        if (groupType.equals("user")) {
+            names = data.getGroupMembership(name);
+        } else {
+            names = data.getGroupParents(name);
         }
-        
+
+        ArrayList<Group> result = new ArrayList<Group>();
+        for (String name : names) {
+            result.add(new Group(plugin, name));
+        }
+
         return result;
     }
     
@@ -42,36 +46,41 @@ public class PermissionInfo {
      * Gets a map of non-world-specific permission nodes to boolean values that this group/player defines.
      * @return The map of permissions.
      */
-    public Map<String, Boolean> getPermissions() {
-        HashMap<String, Boolean> result = new HashMap<String, Boolean>();
-        for (String key : node.getNode("permissions").getKeys()) {
-            result.put(key, (Boolean) node.getNode("permissions").getProperty(key));
+    public Map<String, Boolean> getPermissions() throws DataAccessException {
+        PermissionsData data = plugin.getData();
+
+        if (groupType.equals("user")) {
+            return data.getUserPermissions(name, "");
+        } else {
+            return data.getGroupPermissions(name, "");
         }
-        return result;
     }
     
     /**
      * Gets a list of worlds this group/player defines world-specific permissions for.
      */
-    public List<String> getWorlds() {
-        if (node.getNode("worlds") == null) {
-            return new ArrayList<String>();
+    public List<String> getWorlds() throws DataAccessException {
+        PermissionsData data = plugin.getData();
+
+        if (groupType.equals("user")) {
+            return new ArrayList<String>(data.getUserWorlds(name));
+        } else {
+            return new ArrayList<String>(data.getGroupWorlds(name));
         }
-        return node.getNode("worlds").getKeys();
     }
     
     /**
      * Gets a map of world-specific permission nodes to boolean values that this group/player defines.
      * @return The map of permissions.
      */
-    public Map<String, Boolean> getWorldPermissions(String world) {
-        HashMap<String, Boolean> result = new HashMap<String, Boolean>();
-        if (node.getNode("worlds." + world) != null) {
-            for (String key : node.getNode("worlds." + world).getKeys()) {
-                result.put(key, (Boolean) node.getNode("worlds." + world).getProperty(key));
-            }
+    public Map<String, Boolean> getWorldPermissions(String world) throws DataAccessException {
+        PermissionsData data = plugin.getData();
+
+        if (groupType.equals("user")) {
+            return data.getUserPermissions(name, world);
+        } else {
+            return data.getGroupPermissions(name, world);
         }
-        return result;
     }
     
 }

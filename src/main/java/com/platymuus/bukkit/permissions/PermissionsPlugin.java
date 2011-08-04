@@ -1,10 +1,7 @@
 package com.platymuus.bukkit.permissions;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.*;
+import java.util.*;
 
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event.Priority;
@@ -14,6 +11,7 @@ import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.config.ConfigurationNode;
 
+import com.platymuus.bukkit.permissions.data.DataAccessException;
 import com.platymuus.bukkit.permissions.data.PermissionsData;
 import com.platymuus.bukkit.permissions.data.SQLData;
 import com.platymuus.bukkit.permissions.data.YMLData;
@@ -27,6 +25,7 @@ public class PermissionsPlugin extends JavaPlugin {
     private PlayerListener playerListener = new PlayerListener(this);
     private PermissionsCommand commandExecutor = new PermissionsCommand(this);
     private HashMap<String, PermissionAttachment> permissions = new HashMap<String, PermissionAttachment>();
+    private PermissionsData data;
 
     // -- Basic stuff
     @Override
@@ -35,6 +34,12 @@ public class PermissionsPlugin extends JavaPlugin {
         if (!new File(getDataFolder(), "config.yml").exists()) {
             getServer().getLogger().info("Generating default configuration");
             writeDefaultConfiguration();
+        }
+
+        try {
+            data = new SQLData(getConfiguration());
+        } catch (DataAccessException e) {
+            throw new RuntimeException("Unable to load PermissionsBukkit data!", e);
         }
 
         // Commands
@@ -75,13 +80,9 @@ public class PermissionsPlugin extends JavaPlugin {
      * @param groupName The name of the group.
      * @return A Group if it exists or null otherwise.
      */
-    public Group getGroup(String groupName) {
-        if (getNode("groups") != null) {
-            for (String key : getNode("groups").getKeys()) {
-                if (key.equalsIgnoreCase(groupName)) {
-                    return new Group(this, key);
-                }
-            }
+    public Group getGroup(String groupName) throws DataAccessException {
+        if (data.groupExists(groupName)) {
+            return new Group(this, groupName);
         }
         return null;
     }
@@ -91,14 +92,10 @@ public class PermissionsPlugin extends JavaPlugin {
      * @param playerName The name of the player.
      * @return The groups this player is in. May be empty.
      */
-    public List<Group> getGroups(String playerName) {
+    public List<Group> getGroups(String playerName) throws DataAccessException {
         ArrayList<Group> result = new ArrayList<Group>();
-        if (getNode("users." + playerName) != null) {
-            for (String key : getNode("users." + playerName).getStringList("groups", new ArrayList<String>())) {
-                result.add(new Group(this, key));
-            }
-        } else {
-            result.add(new Group(this, "default"));
+        for (String group : data.getEffectiveGroupMembership(playerName)) {
+            result.add(new Group(this, group));
         }
         return result;
     }
@@ -108,11 +105,11 @@ public class PermissionsPlugin extends JavaPlugin {
      * @param playerName The name of the player.
      * @return A PermissionsInfo about this player.
      */
-    public PermissionInfo getPlayerInfo(String playerName) {
-        if (getNode("users." + playerName) == null) {
+    public PermissionInfo getPlayerInfo(String playerName) throws DataAccessException {
+        if (!data.userExists(playerName)) {
             return null;
         } else {
-            return new PermissionInfo(this, getNode("users." + playerName), "groups");
+            return new PermissionInfo(this, playerName, "user");
         }
     }
 
@@ -120,12 +117,10 @@ public class PermissionsPlugin extends JavaPlugin {
      * Returns a list of all defined groups.
      * @return The list of groups.
      */
-    public List<Group> getAllGroups() {
+    public List<Group> getAllGroups() throws DataAccessException {
         ArrayList<Group> result = new ArrayList<Group>();
-        if (getNode("groups") != null) {
-            for (String key : getNode("groups").getKeys()) {
-                result.add(new Group(this, key));
-            }
+        for (String group : data.getGroups()) {
+            result.add(new Group(this, group));
         }
         return result;
     }
@@ -134,7 +129,11 @@ public class PermissionsPlugin extends JavaPlugin {
     protected void registerPlayer(Player player) {
         PermissionAttachment attachment = player.addAttachment(this);
         permissions.put(player.getName(), attachment);
-        calculateAttachment(player);
+        try {
+            calculateAttachment(player);
+        } catch (DataAccessException e) {
+            getServer().getLogger().warning("Unable to calculate permissions for " + player + ".  Using default permissions.");
+        }
     }
 
     protected void unregisterPlayer(Player player) {
@@ -150,104 +149,67 @@ public class PermissionsPlugin extends JavaPlugin {
                 attachment.unsetPermission(key);
             }
 
-            calculateAttachment(getServer().getPlayer(player));
+            try {
+                calculateAttachment(getServer().getPlayer(player));
+            } catch (DataAccessException e) {
+                getServer().getLogger().warning("Unable to calculate permissions for " + player + ".  Using default permissions.");
+            }
         }
     }
 
-    protected ConfigurationNode getNode(String child) {
-        return getNode("", child);
+    // Internal use
+
+    protected PermissionsData getData() {
+        return data;
+    }
+
+    protected void logError(Exception e) {
+        StringWriter sw = new StringWriter();
+        e.printStackTrace(new PrintWriter(sw));
+        getServer().getLogger().warning(sw.toString());
     }
 
     // -- Private stuff
     
-    private ConfigurationNode getNode(String parent, String child) {
-        ConfigurationNode parentNode = null;
-        if (child.contains(".")) {
-            int index = child.lastIndexOf('.');
-            parentNode = getNode("", child.substring(0, index));
-            child = child.substring(index + 1);
-        } else if (parent.length() == 0) {
-            parentNode = getConfiguration();
-        } else if (parent.contains(".")) {
-            int index = parent.indexOf('.');
-            parentNode = getNode(parent.substring(0, index), parent.substring(index + 1));
-        } else {
-            parentNode = getNode("", parent);
-        }
-
-        if (parentNode == null) {
-            return null;
-        }
-
-        for (String entry : parentNode.getKeys()) {
-            if (child.equalsIgnoreCase(entry)) {
-                return parentNode.getNode(entry);
-            }
-        }
-        return null;
-    }
-
-    private void calculateAttachment(Player player) {
+    private void calculateAttachment(Player player) throws DataAccessException {
         if (player == null) return;
         PermissionAttachment attachment = permissions.get(player.getName());
 
-        for (Map.Entry<String, Object> entry : calculatePlayerPermissions(player.getName().toLowerCase(), player.getWorld().getName()).entrySet()) {
-            if (entry.getValue() != null && entry.getValue() instanceof Boolean) {
+        for (Map.Entry<String, Boolean> entry : calculatePlayerPermissions(player.getName(), player.getWorld().getName()).entrySet()) {
+            if (entry.getValue() != null) {
                 attachment.setPermission(entry.getKey(), (Boolean) entry.getValue());
             } else {
-                getServer().getLogger().warning("[PermissionsBukkit] Node " + entry.getKey() + " for player " + player.getName() + " is non-Boolean");
+                getServer().getLogger().warning("[PermissionsBukkit] Node " + entry.getKey() + " for player " + player.getName() + " is null.");
             }
         }
 
         player.recalculatePermissions();
     }
 
-    private Map<String, Object> calculatePlayerPermissions(String player, String world) {
-        if (getNode("users." + player) == null) {
-            return calculateGroupPermissions("default", world);
-        }
+    private Map<String, Boolean> calculatePlayerPermissions(String player, String world) throws DataAccessException {
+        Map<String, Boolean> perms = new HashMap<String, Boolean>();
+        Set<String> groups = data.getGroupMembership(player);
 
-        Map<String, Object> perms = getNode("users." + player + ".permissions") == null ? new HashMap<String, Object>() : getNode("users." + player + ".permissions").getAll();
 
-        if (getNode("users." + player + ".worlds." + world) != null) {
-            for (Map.Entry<String, Object> entry : getNode("users." + player + ".worlds." + world).getAll().entrySet()) {
-                // No containskey; world overrides non-world
-                perms.put(entry.getKey(), entry.getValue());
-            }
-        }
+        // Note: We could simplify this as:
+        // perms.putAll(data.getFullUserPermissions(player, ""));
+        // perms.putAll(data.getFullUserPermissions(player, world));
+        // BUT, this would cause world-specific group permissions to override
+        // non-world-specific user permissions.
+        // As user permissions exist to handle special cases not covered by
+        // the groups, it makes more sense as written.
 
-        for (String group : getNode("users." + player).getStringList("groups", new ArrayList<String>())) {
-            for (Map.Entry<String, Object> entry : calculateGroupPermissions(group, world).entrySet()) {
-                if (!perms.containsKey(entry.getKey())) { // User overrides group
-                    perms.put(entry.getKey(), entry.getValue());
-                }
-            }
-        }
+        // Least-priority: Non-world-specific group permissions.
+        perms.putAll(data.getInheritedUserPermissions(player, ""));
 
-        return perms;
-    }
+        // Low-priority: World-specific group permissions.
+        perms.putAll(data.getInheritedUserPermissions(player, world));
 
-    private Map<String, Object> calculateGroupPermissions(String group, String world) {
-        if (getNode("groups." + group) == null) {
-            return new HashMap<String, Object>();
-        }
+        // Medium-priority: Non-world-specific user permissions.
+        perms.putAll(data.getUserPermissions(player, ""));
 
-        Map<String, Object> perms = getNode("groups." + group + ".permissions") == null ? new HashMap<String, Object>() : getNode("groups." + group + ".permissions").getAll();
-
-        if (getNode("groups." + group + ".worlds." + world) != null) {
-            for (Map.Entry<String, Object> entry : getNode("groups." + group + ".worlds." + world).getAll().entrySet()) {
-                // No containskey; world overrides non-world
-                perms.put(entry.getKey(), entry.getValue());
-            }
-        }
-
-        for (String parent : getNode("groups." + group).getStringList("inheritance", new ArrayList<String>())) {
-            for (Map.Entry<String, Object> entry : calculateGroupPermissions(parent, world).entrySet()) {
-                if (!perms.containsKey(entry.getKey())) { // Children override permissions
-                    perms.put(entry.getKey(), entry.getValue());
-                }
-            }
-        }
+        // High-priority: World-specific user permissions.
+        perms.putAll(data.getUserPermissions(player, world));
 
         return perms;
     }
