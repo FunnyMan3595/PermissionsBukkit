@@ -260,7 +260,7 @@ public class SQLData extends PermissionsData {
         }
     }
 
-    protected String getString(PreparedStatement statement, Object ... parameters) throws DataAccessException {
+    protected synchronized String getString(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         ResultSet result = query(statement, parameters);
 
         try {
@@ -273,7 +273,7 @@ public class SQLData extends PermissionsData {
         return null;
     }
 
-    protected Boolean getBoolean(PreparedStatement statement, Object ... parameters) throws DataAccessException {
+    protected synchronized Boolean getBoolean(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         ResultSet result = query(statement, parameters);
 
         try {
@@ -286,7 +286,7 @@ public class SQLData extends PermissionsData {
         return null;
     }
 
-    protected Integer getInteger(PreparedStatement statement, Object ... parameters) throws DataAccessException {
+    protected synchronized Integer getInteger(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         ResultSet result = query(statement, parameters);
 
         try {
@@ -299,7 +299,7 @@ public class SQLData extends PermissionsData {
         return null;
     }
 
-    protected HashSet<String> getHashSet(PreparedStatement statement, Object ... parameters) throws DataAccessException {
+    protected synchronized HashSet<String> getHashSet(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         ResultSet result = query(statement, parameters);
 
         HashSet<String> entries = new HashSet<String>();
@@ -314,7 +314,7 @@ public class SQLData extends PermissionsData {
         return entries;
     }
 
-    protected HashMap<String, Boolean> getHashMap(PreparedStatement statement, Object ... parameters) throws DataAccessException {
+    protected synchronized HashMap<String, Boolean> getHashMap(PreparedStatement statement, Object ... parameters) throws DataAccessException {
         ResultSet result = query(statement, parameters);
 
         HashMap<String, Boolean> entries = new HashMap<String, Boolean>();
