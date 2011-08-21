@@ -153,6 +153,26 @@ public class PermissionsPlugin extends JavaPlugin {
         return perms;
     }
 
+    public PermissionsData getData() {
+        return data;
+    }
+
+    public void refreshPermissions() {
+        getConfiguration().save();
+        for (String player : permissions.keySet()) {
+            PermissionAttachment attachment = permissions.get(player);
+            for (String key : attachment.getPermissions().keySet()) {
+                attachment.unsetPermission(key);
+            }
+
+            try {
+                calculateAttachment(getServer().getPlayer(player));
+            } catch (DataAccessException e) {
+                getServer().getLogger().warning("Unable to calculate permissions for " + player + ".  Using default permissions.");
+            }
+        }
+    }
+
     // -- Plugin stuff
     protected void registerPlayer(Player player) {
         PermissionAttachment attachment = player.addAttachment(this);
@@ -169,27 +189,7 @@ public class PermissionsPlugin extends JavaPlugin {
         permissions.remove(player.getName());
     }
 
-    protected void refreshPermissions() {
-        getConfiguration().save();
-        for (String player : permissions.keySet()) {
-            PermissionAttachment attachment = permissions.get(player);
-            for (String key : attachment.getPermissions().keySet()) {
-                attachment.unsetPermission(key);
-            }
-
-            try {
-                calculateAttachment(getServer().getPlayer(player));
-            } catch (DataAccessException e) {
-                getServer().getLogger().warning("Unable to calculate permissions for " + player + ".  Using default permissions.");
-            }
-        }
-    }
-
     // Internal use
-
-    protected PermissionsData getData() {
-        return data;
-    }
 
     protected void logError(Exception e) {
         StringWriter sw = new StringWriter();
