@@ -125,6 +125,34 @@ public class PermissionsPlugin extends JavaPlugin {
         return result;
     }
 
+    public Map<String, Boolean> calculatePlayerPermissions(String player, String world) throws DataAccessException {
+        Map<String, Boolean> perms = new HashMap<String, Boolean>();
+        Set<String> groups = data.getGroupMembership(player);
+
+
+        // Note: We could simplify this as:
+        // perms.putAll(data.getFullUserPermissions(player, ""));
+        // perms.putAll(data.getFullUserPermissions(player, world));
+        // BUT, this would cause world-specific group permissions to override
+        // non-world-specific user permissions.
+        // As user permissions exist to handle special cases not covered by
+        // the groups, it makes more sense as written.
+
+        // Least-priority: Non-world-specific group permissions.
+        perms.putAll(data.getInheritedUserPermissions(player, ""));
+
+        // Low-priority: World-specific group permissions.
+        perms.putAll(data.getInheritedUserPermissions(player, world));
+
+        // Medium-priority: Non-world-specific user permissions.
+        perms.putAll(data.getUserPermissions(player, ""));
+
+        // High-priority: World-specific user permissions.
+        perms.putAll(data.getUserPermissions(player, world));
+
+        return perms;
+    }
+
     // -- Plugin stuff
     protected void registerPlayer(Player player) {
         PermissionAttachment attachment = player.addAttachment(this);
@@ -184,34 +212,6 @@ public class PermissionsPlugin extends JavaPlugin {
         }
 
         player.recalculatePermissions();
-    }
-
-    private Map<String, Boolean> calculatePlayerPermissions(String player, String world) throws DataAccessException {
-        Map<String, Boolean> perms = new HashMap<String, Boolean>();
-        Set<String> groups = data.getGroupMembership(player);
-
-
-        // Note: We could simplify this as:
-        // perms.putAll(data.getFullUserPermissions(player, ""));
-        // perms.putAll(data.getFullUserPermissions(player, world));
-        // BUT, this would cause world-specific group permissions to override
-        // non-world-specific user permissions.
-        // As user permissions exist to handle special cases not covered by
-        // the groups, it makes more sense as written.
-
-        // Least-priority: Non-world-specific group permissions.
-        perms.putAll(data.getInheritedUserPermissions(player, ""));
-
-        // Low-priority: World-specific group permissions.
-        perms.putAll(data.getInheritedUserPermissions(player, world));
-
-        // Medium-priority: Non-world-specific user permissions.
-        perms.putAll(data.getUserPermissions(player, ""));
-
-        // High-priority: World-specific user permissions.
-        perms.putAll(data.getUserPermissions(player, world));
-
-        return perms;
     }
 
     private void writeDefaultConfiguration() {
