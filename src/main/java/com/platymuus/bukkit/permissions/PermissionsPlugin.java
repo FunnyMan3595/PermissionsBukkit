@@ -127,7 +127,7 @@ public class PermissionsPlugin extends JavaPlugin {
 
     public Map<String, Boolean> calculatePlayerPermissions(String player, String world) throws DataAccessException {
         Map<String, Boolean> perms = new HashMap<String, Boolean>();
-        Set<String> groups = data.getGroupMembership(player);
+        Set<String> groups = data.getEffectiveGroupMembership(player);
 
 
         // Note: We could simplify this as:
