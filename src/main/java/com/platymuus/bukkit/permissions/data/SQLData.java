@@ -7,6 +7,10 @@ import java.util.*;
 import org.bukkit.util.config.Configuration;
 
 public class SQLData extends PermissionsData {
+    private String url = null;
+    private String user = null;
+    private String password = null;
+
     protected Connection db;
     protected Statement direct;
 
@@ -116,9 +120,9 @@ public class SQLData extends PermissionsData {
         } catch (Exception e) {
         }
 
-        String url = config.getString("sql.uri");
-        String user = config.getString("sql.username");
-        String password = config.getString("sql.password");
+        url = config.getString("sql.uri");
+        user = config.getString("sql.username");
+        password = config.getString("sql.password");
         String dbms = config.getString("sql.dbms");
 
         if (dbms!=null && !dbms.equalsIgnoreCase("MYSQL")) {
@@ -134,13 +138,13 @@ public class SQLData extends PermissionsData {
         }
 
         try {
-            init(url, user, password);
+            init();
         } catch (SQLException e) {
             throw new DataAccessException("Unable to connect to database.", e);
         }
     }
 
-    public void init(String url, String user, String password) throws SQLException {
+    public void init() throws SQLException {
         MysqlDataSource server = new MysqlDataSource();
         server.setUrl(url);
         server.setUser(user);
@@ -485,5 +489,18 @@ public class SQLData extends PermissionsData {
             execute(remove_user_permission, user, world, permission);
         }
         return old_value;
+    }
+
+    public synchronized void run() {
+        try {
+            getDefaultGroup();
+        } catch (DataAccessException e) {
+            // Connection to the database seems to be lost.  Reconnect.
+            try {
+                init();
+            } catch (SQLException e2) {
+                scream("Unable to connect to database: " + e2.getMessage());
+            }
+        }
     }
 }

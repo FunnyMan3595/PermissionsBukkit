@@ -3,7 +3,7 @@ package com.platymuus.bukkit.permissions.data;
 import java.util.*;
 import org.bukkit.util.config.Configuration;
 
-public abstract class PermissionsData {
+public abstract class PermissionsData implements Runnable {
     protected Configuration config;
 
     public PermissionsData(Configuration config) throws DataAccessException {
@@ -98,4 +98,10 @@ public abstract class PermissionsData {
     public abstract Boolean removeGroupPermission(String group, String world, String permission) throws DataAccessException;
     public abstract Boolean addUserPermission(String user, String world, String permission, Boolean value) throws DataAccessException;
     public abstract Boolean removeUserPermission(String user, String world, String permission) throws DataAccessException;
+
+
+    // This is run once a minute, to allow the data object to maintain
+    // and/or re-establish connections.
+    public void run() {
+    }
 }

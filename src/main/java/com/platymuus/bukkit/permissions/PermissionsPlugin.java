@@ -27,6 +27,9 @@ public class PermissionsPlugin extends JavaPlugin {
     private HashMap<String, PermissionAttachment> permissions = new HashMap<String, PermissionAttachment>();
     private PermissionsData data;
 
+    public final int SECONDS=20; // Server ticks per second.
+    public final int MINUTES=SECONDS*60;
+
     // -- Basic stuff
     @Override
     public void onEnable() {
@@ -38,6 +41,12 @@ public class PermissionsPlugin extends JavaPlugin {
 
         try {
             data = new SQLData(getConfiguration());
+            int task_id = getServer().getScheduler().scheduleSyncRepeatingTask(
+                                       this, data, 1 * MINUTES, 1 * MINUTES);
+
+            if (task_id == -1) {
+                throw new RuntimeException("Unable to schedule data heartbeat!");
+            }
         } catch (DataAccessException e) {
             throw new RuntimeException("Unable to load PermissionsBukkit data!", e);
         }
