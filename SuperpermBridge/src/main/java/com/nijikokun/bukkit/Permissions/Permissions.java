@@ -1,11 +1,14 @@
 package com.nijikokun.bukkit.Permissions;
 
 import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.PluginManager;
 
 import com.nijiko.permissions.PermissionHandler;
 import java.util.logging.Logger;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import com.platymuus.bukkit.permissions.PermissionsPlugin;
 
 /**
  * Legacy Permissions compatibility layer
@@ -72,7 +75,9 @@ public class Permissions extends JavaPlugin {
 
     public PermissionHandler getHandler() {
         if (Security == null) {
-            Security = new com.platymuus.bukkit.permcompat.PermissionHandler();
+            PluginManager pm = getServer().getPluginManager();
+            PermissionsPlugin perms = (PermissionsPlugin) pm.getPlugin("PermissionsBukkit");
+            Security = new com.platymuus.bukkit.permcompat.PermissionHandler(perms);
         }
 
         return Security;

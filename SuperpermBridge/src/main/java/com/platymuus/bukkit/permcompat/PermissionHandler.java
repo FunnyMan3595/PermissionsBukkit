@@ -1,11 +1,16 @@
 package com.platymuus.bukkit.permcompat;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import org.bukkit.Bukkit;
 import org.bukkit.Server;
 import org.bukkit.entity.Player;
 import org.bukkit.util.config.Configuration;
+
+import com.platymuus.bukkit.permissions.PermissionsPlugin;
+import com.platymuus.bukkit.permissions.data.PermissionsData;
+import com.platymuus.bukkit.permissions.data.DataAccessException;
 
 /**
  *
@@ -14,8 +19,10 @@ import org.bukkit.util.config.Configuration;
 public class PermissionHandler extends com.nijiko.permissions.PermissionHandler {
     
     private Server server;
+    private PermissionsPlugin perms;
     
-    public PermissionHandler() {
+    public PermissionHandler(PermissionsPlugin perms) {
+        this.perms = perms;
         server = Bukkit.getServer();
     }
     
@@ -71,27 +78,59 @@ public class PermissionHandler extends com.nijiko.permissions.PermissionHandler 
 
     @Override
     public String getGroup(String world, String userName) {
-        return null;
+        String[] groups = getGroups(world, userName);
+        if (groups.length == 0) {
+            return null;
+        } else {
+            return groups[0];
+        }
     }
 
     @Override
     public String[] getGroups(String world, String userName) {
+        if (perms != null) {
+            try {
+                PermissionsData pdata = perms.getData();
+                HashSet<String> group_set = pdata.getEffectiveGroupMembership(userName);
+                String[] groups = new String[group_set.size()];
+                int i = 0;
+                for (String group : group_set) {
+                    groups[i] = group;
+                    i++;
+                }
+
+                return groups;
+            } catch (DataAccessException e) {
+                // Meh.
+            }
+        }
         return new String[] {};
     }
 
     @Override
     public boolean inGroup(String world, String userName, String groupName) {
-        return false;
+        return inGroup(userName, groupName);
     }
 
     @Override
     public boolean inGroup(String name, String group) {
+        String[] groups = getGroups("", name);
+        for (String in_group : groups) {
+            if (in_group.equalsIgnoreCase(group)) {
+                return true;
+            }
+        }
         return false;
     }
 
     @Override
     public boolean inSingleGroup(String world, String userName, String groupName) {
-        return false;
+        String[] groups = getGroups(world, userName);
+        if (groups.length != 1) {
+            return false;
+        }
+
+        return groups[0].equalsIgnoreCase(groupName);
     }
 
     @Override
