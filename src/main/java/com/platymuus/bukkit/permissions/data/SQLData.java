@@ -4,15 +4,18 @@ import com.mysql.jdbc.jdbc2.optional.MysqlDataSource;
 import java.io.*;
 import java.sql.*;
 import java.util.*;
+import java.util.logging.Logger;
 import org.bukkit.util.config.Configuration;
 
 public class SQLData extends PermissionsData {
+    public Logger log = Logger.getLogger("Minecraft");
+
+    private boolean debug;
     private String url = null;
     private String user = null;
     private String password = null;
 
-    protected Connection db;
-    protected Statement direct;
+    protected DAEWrapper db;
 
     protected PreparedStatement set_default_group;
     protected PreparedStatement add_group;
@@ -50,31 +53,12 @@ public class SQLData extends PermissionsData {
     protected PreparedStatement get_group_parents;
     protected PreparedStatement get_group_children;
 
-    private PrintWriter screamfile;
-    private void scream() {
-        scream("Aieeeee!");
-    }
-    private void scream(String message) {
-        try {
-            throw new DataAccessException(message);
-        } catch (DataAccessException e) {
-            try {
-                e.printStackTrace(screamfile);
-                screamfile.flush();
-            } catch (Exception e2) {
-            }
-        }
-    }
-
     public void close() {
         try {
             db.close();
-        } catch (SQLException e) {
-            // Not much to be done here.  :(
+        } catch (DataAccessException e) {
+            log.severe("Unable to close database: " + e.getMessage());
         }
-
-        db = null;
-        direct = null;
 
         set_default_group = null;
         add_group = null;
@@ -115,11 +99,8 @@ public class SQLData extends PermissionsData {
 
     public SQLData(Configuration config) throws DataAccessException {
         super(config);
-        try {
-            screamfile = new PrintWriter(new FileWriter("pbscream.txt"));
-        } catch (Exception e) {
-        }
 
+        debug = config.getBoolean("sql.debug", false);
         url = config.getString("sql.uri");
         user = config.getString("sql.username");
         password = config.getString("sql.password");
@@ -137,14 +118,10 @@ public class SQLData extends PermissionsData {
             throw new DataAccessException("sql.uri is null!");
         }
 
-        try {
-            init();
-        } catch (SQLException e) {
-            throw new DataAccessException("Unable to connect to database.", e);
-        }
+        init();
     }
 
-    public void init() throws SQLException {
+    public void init() throws DataAccessException {
         MysqlDataSource server = new MysqlDataSource();
         server.setUrl(url);
         server.setUser(user);
@@ -153,15 +130,16 @@ public class SQLData extends PermissionsData {
         server.setCachePreparedStatements(true);
         server.setPreparedStatementCacheSize(50);
 
-        db = server.getConnection();
-        direct = db.createStatement();
+        db = new DAEWrapper(server, log, debug);
 
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS Users (userid INT NOT NULL AUTO_INCREMENT, username VARCHAR(64) NOT NULL, PRIMARY KEY(userid), INDEX (username))");
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS Groups (groupid INT NOT NULL AUTO_INCREMENT, groupname VARCHAR(64) NOT NULL, is_default BOOLEAN NOT NULL, PRIMARY KEY(groupid), INDEX (groupname))");
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupPermissions (groupid INT NOT NULL, world VARCHAR(64) NOT NULL, permission VARCHAR(64) NOT NULL, value BOOLEAN NOT NULL, PRIMARY KEY(groupid, world, permission), INDEX(groupid))");
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS UserPermissions (userid INT NOT NULL, world VARCHAR(64) NOT NULL, permission VARCHAR(64) NOT NULL, value BOOLEAN NOT NULL, PRIMARY KEY(userid, world, permission), INDEX(userid))");
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupMembership (groupid INT NOT NULL, userid INT NOT NULL, PRIMARY KEY(groupid,userid), INDEX(groupid), INDEX(userid))");
-        direct.executeUpdate("CREATE TABLE IF NOT EXISTS GroupInheritance (parent INT NOT NULL, child INT NOT NULL, PRIMARY KEY(parent,child), INDEX(parent), INDEX(child))");
+        Vector<String> setup = new Vector<String>();
+        setup.add("CREATE TABLE IF NOT EXISTS Users (userid INT NOT NULL AUTO_INCREMENT, username VARCHAR(64) NOT NULL, PRIMARY KEY(userid), INDEX (username))");
+        setup.add("CREATE TABLE IF NOT EXISTS Groups (groupid INT NOT NULL AUTO_INCREMENT, groupname VARCHAR(64) NOT NULL, is_default BOOLEAN NOT NULL, PRIMARY KEY(groupid), INDEX (groupname))");
+        setup.add("CREATE TABLE IF NOT EXISTS GroupPermissions (groupid INT NOT NULL, world VARCHAR(64) NOT NULL, permission VARCHAR(64) NOT NULL, value BOOLEAN NOT NULL, PRIMARY KEY(groupid, world, permission), INDEX(groupid))");
+        setup.add("CREATE TABLE IF NOT EXISTS UserPermissions (userid INT NOT NULL, world VARCHAR(64) NOT NULL, permission VARCHAR(64) NOT NULL, value BOOLEAN NOT NULL, PRIMARY KEY(userid, world, permission), INDEX(userid))");
+        setup.add("CREATE TABLE IF NOT EXISTS GroupMembership (groupid INT NOT NULL, userid INT NOT NULL, PRIMARY KEY(groupid,userid), INDEX(groupid), INDEX(userid))");
+        setup.add("CREATE TABLE IF NOT EXISTS GroupInheritance (parent INT NOT NULL, child INT NOT NULL, PRIMARY KEY(parent,child), INDEX(parent), INDEX(child))");
+        db.initializeDatabase(setup);
 
         set_default_group = db.prepareStatement("UPDATE Groups SET is_default=(groupname=?)");
         add_group = db.prepareStatement("INSERT INTO Groups SET groupname=?, is_default=false");
@@ -201,17 +179,17 @@ public class SQLData extends PermissionsData {
     }
 
     public Boolean getUserPermission(String user, String world, String permission) throws DataAccessException {
-        return getBoolean(get_user_permission, user, world, permission);
+        return db.get(get_user_permission, user, world, permission);
     }
 
     public Boolean getGroupPermission(String group, String world, String permission) throws DataAccessException {
-        return getBoolean(get_group_permission, group, world, permission);
+        return db.get(get_group_permission, group, world, permission);
     }
 
     // Returns true if the user needed to be created.
     public synchronized boolean createUser(String user) throws DataAccessException {
         if (getUserID(user) == null) {
-            execute(add_user, user);
+            db.execute(add_user, user);
             return true;
         }
         return false;
@@ -220,7 +198,7 @@ public class SQLData extends PermissionsData {
     // Returns true if the group needed to be created.
     public synchronized boolean createGroup(String group) throws DataAccessException {
         if (getGroupID(group) == null) {
-            execute(add_group, group);
+            db.execute(add_group, group);
             return true;
         }
         return false;
@@ -228,109 +206,12 @@ public class SQLData extends PermissionsData {
 
     // Returns null if no such user.
     public Integer getUserID(String user) throws DataAccessException {
-        return getInteger(get_user_id, user);
+        return db.get(get_user_id, user);
     }
 
     // Returns null if no such group.
     public Integer getGroupID(String group) throws DataAccessException {
-        return getInteger(get_group_id, group);
-    }
-
-    /*
-     *  Protected methods for managing PreparedStatements and translating
-     *  SQLExceptions into PermissionsDataExceptions.
-     */
-
-    protected synchronized ResultSet query(PreparedStatement statement, Object ... parameters) throws DataAccessException {
-        try {
-            for (int i=0; i<parameters.length; i++) {
-                statement.setObject(i+1, parameters[i]);
-            }
-            ResultSet result = statement.executeQuery();
-            return result;
-        } catch (SQLException e) {
-            throw new DataAccessException("Unable to query database.", e);
-        }
-    }
-
-    protected synchronized int execute(PreparedStatement statement, Object ... parameters) throws DataAccessException {
-        try {
-            for (int i=0; i<parameters.length; i++) {
-                statement.setObject(i+1, parameters[i]);
-            }
-            return statement.executeUpdate();
-        } catch (SQLException e) {
-            throw new DataAccessException("Unable to query database.", e);
-        }
-    }
-
-    protected synchronized String getString(PreparedStatement statement, Object ... parameters) throws DataAccessException {
-        ResultSet result = query(statement, parameters);
-
-        try {
-            if (result.next()) {
-                return result.getString(1);
-            }
-        } catch (SQLException e) {
-            throw new DataAccessException("Unable to retrieve value.", e);
-        }
-        return null;
-    }
-
-    protected synchronized Boolean getBoolean(PreparedStatement statement, Object ... parameters) throws DataAccessException {
-        ResultSet result = query(statement, parameters);
-
-        try {
-            if (result.next()) {
-                return result.getBoolean(1);
-            }
-        } catch (SQLException e) {
-            throw new DataAccessException("Unable to retrieve value.", e);
-        }
-        return null;
-    }
-
-    protected synchronized Integer getInteger(PreparedStatement statement, Object ... parameters) throws DataAccessException {
-        ResultSet result = query(statement, parameters);
-
-        try {
-            if (result.next()) {
-                return result.getInt(1);
-            }
-        } catch (SQLException e) {
-            throw new DataAccessException("Unable to retrieve value.", e);
-        }
-        return null;
-    }
-
-    protected synchronized HashSet<String> getHashSet(PreparedStatement statement, Object ... parameters) throws DataAccessException {
-        ResultSet result = query(statement, parameters);
-
-        HashSet<String> entries = new HashSet<String>();
-        try {
-            while (result.next()) {
-                entries.add(result.getString(1));
-            }
-        } catch (SQLException e) {
-            throw new DataAccessException("Unable to retrieve value.", e);
-        }
-
-        return entries;
-    }
-
-    protected synchronized HashMap<String, Boolean> getHashMap(PreparedStatement statement, Object ... parameters) throws DataAccessException {
-        ResultSet result = query(statement, parameters);
-
-        HashMap<String, Boolean> entries = new HashMap<String, Boolean>();
-        try {
-            while (result.next()) {
-                entries.put(result.getString(1), result.getBoolean(2));
-            }
-        } catch (SQLException e) {
-            throw new DataAccessException("Unable to retrieve value.", e);
-        }
-
-        return entries;
+        return db.get(get_group_id, group);
     }
 
 
@@ -346,48 +227,48 @@ public class SQLData extends PermissionsData {
     }
 
     public HashSet<String> getUsers() throws DataAccessException {
-        return getHashSet(get_users);
+        return db.getHashSet(get_users);
     }
 
     public HashSet<String> getGroups() throws DataAccessException {
-        return getHashSet(get_groups);
+        return db.getHashSet(get_groups);
     }
 
     public String getDefaultGroup() throws DataAccessException {
-        return getString(get_default_group);
+        return db.get(get_default_group);
     }
 
     // Note: For the default group, groupless users need not be included.
     public HashSet<String> getGroupMembers(String group) throws DataAccessException {
-        return getHashSet(get_group_members, group);
+        return db.getHashSet(get_group_members, group);
     }
 
     public HashSet<String> getGroupMembership(String user) throws DataAccessException {
-        return getHashSet(get_user_groups, user);
+        return db.getHashSet(get_user_groups, user);
     }
 
     public HashSet<String> getGroupParents(String group) throws DataAccessException {
-        return getHashSet(get_group_parents, group);
+        return db.getHashSet(get_group_parents, group);
     }
 
     public HashSet<String> getGroupChildren(String group) throws DataAccessException {
-        return getHashSet(get_group_children, group);
+        return db.getHashSet(get_group_children, group);
     }
 
     public HashMap<String,Boolean> getUserPermissions(String user, String world) throws DataAccessException {
-        return getHashMap(get_user_permissions, user, world);
+        return db.getHashMap(get_user_permissions, user, world);
     }
 
     public HashSet<String> getGroupWorlds(String group) throws DataAccessException {
-        return getHashSet(get_group_worlds, group);
+        return db.getHashSet(get_group_worlds, group);
     }
 
     public HashSet<String> getUserWorlds(String user) throws DataAccessException {
-        return getHashSet(get_user_worlds, user);
+        return db.getHashSet(get_user_worlds, user);
     }
 
     public HashMap<String,Boolean> getGroupPermissions(String group, String world) throws DataAccessException {
-        return getHashMap(get_group_permissions, group, world);
+        return db.getHashMap(get_group_permissions, group, world);
     }
 
     // These return true if a change was made.
@@ -396,9 +277,9 @@ public class SQLData extends PermissionsData {
             for (String group : getGroupMembership(user)) {
                 leaveGroup(user, group);
             }
-            execute(remove_all_user_permissions, user);
-            execute(remove_all_user_groups, user);
-            execute(remove_user, user);
+            db.execute(remove_all_user_permissions, user);
+            db.execute(remove_all_user_groups, user);
+            db.execute(remove_user, user);
 
             return true;
         } else {
@@ -419,10 +300,10 @@ public class SQLData extends PermissionsData {
             for (String parent : getGroupParents(group)) {
                 removeGroupParent(group, parent);
             }
-            execute(remove_all_group_members, group);
-            execute(remove_all_group_inheritance, group);
-            execute(remove_all_group_permissions, group);
-            execute(remove_group, group);
+            db.execute(remove_all_group_members, group);
+            db.execute(remove_all_group_inheritance, group);
+            db.execute(remove_all_group_permissions, group);
+            db.execute(remove_group, group);
 
             return true;
         } else {
@@ -433,21 +314,21 @@ public class SQLData extends PermissionsData {
     public synchronized boolean joinGroup(String player, String group) throws DataAccessException {
         createUser(player);
         createGroup(group);
-        return execute(add_group_membership, group, player) > 0;
+        return db.execute(add_group_membership, group, player) > 0;
     }
 
     public boolean leaveGroup(String player, String group) throws DataAccessException {
-        return execute(remove_group_membership, group, player) > 0;
+        return db.execute(remove_group_membership, group, player) > 0;
     }
 
     public synchronized boolean addGroupParent(String child, String parent) throws DataAccessException {
         createGroup(parent);
         createGroup(child);
-        return execute(add_group_inheritance, parent, child) > 0;
+        return db.execute(add_group_inheritance, parent, child) > 0;
     }
 
     public boolean removeGroupParent(String child, String parent) throws DataAccessException {
-        return execute(remove_group_inheritance, parent, child) > 0;
+        return db.execute(remove_group_inheritance, parent, child) > 0;
     }
 
     // These return the old value, null for not set.
@@ -455,10 +336,10 @@ public class SQLData extends PermissionsData {
         createGroup(group);
         Boolean old_value = getGroupPermission(group, world, permission);
         if (old_value != null) {
-            execute(remove_group_permission, group, world, permission);
+            db.execute(remove_group_permission, group, world, permission);
         }
         if (value != null) {
-            execute(add_group_permission, group, world, permission, value);
+            db.execute(add_group_permission, group, world, permission, value);
         }
         return old_value;
     }
@@ -466,7 +347,7 @@ public class SQLData extends PermissionsData {
     public synchronized Boolean removeGroupPermission(String group, String world, String permission) throws DataAccessException {
         Boolean old_value = getGroupPermission(group, world, permission);
         if (old_value != null) {
-            execute(remove_group_permission, group, world, permission);
+            db.execute(remove_group_permission, group, world, permission);
         }
         return old_value;
     }
@@ -475,10 +356,10 @@ public class SQLData extends PermissionsData {
         createUser(user);
         Boolean old_value = getUserPermission(user, world, permission);
         if (old_value != null) {
-            execute(remove_user_permission, user, world, permission);
+            db.execute(remove_user_permission, user, world, permission);
         }
         if (value != null) {
-            execute(add_user_permission, user, world, permission, value);
+            db.execute(add_user_permission, user, world, permission, value);
         }
         return old_value;
     }
@@ -486,7 +367,7 @@ public class SQLData extends PermissionsData {
     public synchronized Boolean removeUserPermission(String user, String world, String permission) throws DataAccessException {
         Boolean old_value = getUserPermission(user, world, permission);
         if (old_value != null) {
-            execute(remove_user_permission, user, world, permission);
+            db.execute(remove_user_permission, user, world, permission);
         }
         return old_value;
     }
@@ -498,8 +379,8 @@ public class SQLData extends PermissionsData {
             // Connection to the database seems to be lost.  Reconnect.
             try {
                 init();
-            } catch (SQLException e2) {
-                scream("Unable to connect to database: " + e2.getMessage());
+            } catch (DataAccessException e2) {
+                log.severe("Unable to connect to database: " + e2.getCause().getMessage());
             }
         }
     }
